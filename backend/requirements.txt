@@ -1,0 +1,7 @@
+flask>=3.1,<4
+flask-cors>=5.0,<6
+python-dotenv>=1.1,<2
+boto3>=1.38,<2
+launchdarkly-server-sdk>=9.15,<10
+launchdarkly-observability>=1.2,<2
+gunicorn>=23.0,<24
