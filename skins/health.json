@@ -1,0 +1,158 @@
+{
+  "id": "health",
+  "brand": {
+    "name": "ToggleCare",
+    "tagline": "Your health, simplified.",
+    "logo": "/assets/logos/togglecare.svg",
+    "favicon": "/assets/favicons/togglecare.ico"
+  },
+
+  "themes": {
+    "retro": {
+      "primaryColor": "#006666",
+      "secondaryColor": "#CC3333",
+      "accentColor": "#FF9900",
+      "backgroundColor": "#FFFFFF",
+      "surfaceColor": "#E8F4F4",
+      "textColor": "#000000",
+      "textMuted": "#333333",
+      "borderColor": "#999999",
+      "fontHeading": "'Times New Roman', serif",
+      "fontBody": "'Arial', 'Verdana', sans-serif",
+      "borderRadius": "0px",
+      "buttonStyle": "beveled",
+      "navStyle": "busy",
+      "cardShadow": "3px 3px 0px #999999",
+      "heroStyle": "banner"
+    },
+    "modern": {
+      "primaryColor": "#0F766E",
+      "secondaryColor": "#115E59",
+      "accentColor": "#5EEAD4",
+      "backgroundColor": "#F0FDFA",
+      "surfaceColor": "#FFFFFF",
+      "textColor": "#134E4A",
+      "textMuted": "#6B7280",
+      "borderColor": "#D1FAE5",
+      "fontHeading": "'DM Sans', sans-serif",
+      "fontBody": "'Inter', sans-serif",
+      "borderRadius": "16px",
+      "buttonStyle": "rounded",
+      "navStyle": "minimal",
+      "cardShadow": "0 1px 3px rgba(0,0,0,0.06)",
+      "heroStyle": "fullbleed"
+    }
+  },
+
+  "terminology": {
+    "item": "Service",
+    "items": "Services",
+    "browse": "Services",
+    "cart": "My Appointments",
+    "cartAction": "Book Appointment",
+    "checkout": "Confirm Booking",
+    "order": "Appointment",
+    "orderConfirmation": "Booking Confirmed",
+    "detail": "Service Details",
+    "categories": "Specialties",
+    "primaryCta": "Find Care",
+    "secondaryCta": "View Services"
+  },
+
+  "nav": [
+    { "label": "Home", "route": "/" },
+    { "label": "Services", "route": "/browse" },
+    { "label": "About", "route": "/about" },
+    { "label": "Contact", "route": "/contact" }
+  ],
+
+  "pages": {
+    "home": {
+      "heroTitle": "Healthcare That Puts You First",
+      "heroSubtitle": "Book appointments, manage prescriptions, and take control of your wellness — all in one place.",
+      "heroCta": "Find Care",
+      "heroImage": "/assets/heroes/health-hero.jpg",
+      "featuredSectionTitle": "Our Specialties",
+      "featuredItemsTitle": "Popular Services"
+    },
+    "browse": {
+      "title": "All Services",
+      "subtitle": "Explore our full range of healthcare services and specialties.",
+      "filterLabel": "Filter by Specialty",
+      "emptyState": "No services found in this specialty."
+    },
+    "detail": {
+      "sizeLabel": "Select Time Slot",
+      "addToCartLabel": "Book Appointment",
+      "descriptionLabel": "About This Service",
+      "relatedTitle": "Related Services"
+    },
+    "cart": {
+      "title": "My Appointments",
+      "emptyState": "You have no upcoming appointments. Find care today!",
+      "subtotalLabel": "Estimated Cost",
+      "checkoutCta": "Confirm Booking",
+      "continueShopping": "Browse More Services"
+    },
+    "checkout": {
+      "title": "Confirm Your Booking",
+      "shippingTitle": "Patient Information",
+      "paymentTitle": "Insurance & Payment",
+      "reviewTitle": "Appointment Review",
+      "placeCta": "Confirm Appointment"
+    },
+    "confirmation": {
+      "title": "Booking Confirmed!",
+      "message": "Your appointment has been scheduled. We'll send you a reminder before your visit.",
+      "orderNumberLabel": "Confirmation Number",
+      "continueCta": "Browse More Services"
+    },
+    "about": {
+      "title": "About ToggleCare",
+      "mission": "ToggleCare was founded on a simple belief: healthcare should be accessible, transparent, and personal. We connect patients with top providers and make it easy to manage every aspect of your health journey.",
+      "values": [
+        { "title": "Patient-First", "description": "Every decision we make starts with what's best for you. Your health, your schedule, your comfort." },
+        { "title": "Trusted Providers", "description": "Our network includes board-certified physicians, specialists, and allied health professionals with proven track records." },
+        { "title": "Always Accessible", "description": "Book online, chat with a nurse, or walk in. We meet you where you are, whenever you need us." }
+      ]
+    },
+    "contact": {
+      "title": "Contact Us",
+      "subtitle": "Questions about our services? Our care team is here to help.",
+      "formFields": ["name", "email", "message"],
+      "submitLabel": "Send Message",
+      "storeInfo": {
+        "address": "1 Embarcadero Center, Suite 1900, San Francisco, CA 94111",
+        "email": "care@togglecare.demo",
+        "phone": "(415) 555-0198"
+      }
+    }
+  },
+
+  "categories": {
+    "groups": [
+      {
+        "label": "Primary Care",
+        "key": "primary",
+        "items": [
+          "General Checkups",
+          "Preventive Screenings",
+          "Chronic Disease Management",
+          "Vaccinations & Immunizations",
+          "Lab Work & Diagnostics"
+        ]
+      },
+      {
+        "label": "Specialties",
+        "key": "specialties",
+        "items": [
+          "Cardiology",
+          "Dermatology",
+          "Orthopedics",
+          "Mental Health",
+          "Pediatrics"
+        ]
+      }
+    ]
+  }
+}

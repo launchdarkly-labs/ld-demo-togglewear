@@ -1,0 +1,158 @@
+{
+  "id": "financial",
+  "brand": {
+    "name": "ToggleBank",
+    "tagline": "Banking built around you.",
+    "logo": "/assets/logos/togglebank.svg",
+    "favicon": "/assets/favicons/togglebank.ico"
+  },
+
+  "themes": {
+    "retro": {
+      "primaryColor": "#003366",
+      "secondaryColor": "#006633",
+      "accentColor": "#CC9900",
+      "backgroundColor": "#FFFFFF",
+      "surfaceColor": "#F0F0E8",
+      "textColor": "#000000",
+      "textMuted": "#333333",
+      "borderColor": "#999999",
+      "fontHeading": "'Times New Roman', serif",
+      "fontBody": "'Arial', 'Verdana', sans-serif",
+      "borderRadius": "0px",
+      "buttonStyle": "beveled",
+      "navStyle": "busy",
+      "cardShadow": "3px 3px 0px #999999",
+      "heroStyle": "banner"
+    },
+    "modern": {
+      "primaryColor": "#1E3A5F",
+      "secondaryColor": "#0D9488",
+      "accentColor": "#F59E0B",
+      "backgroundColor": "#F8FAFC",
+      "surfaceColor": "#FFFFFF",
+      "textColor": "#0F172A",
+      "textMuted": "#64748B",
+      "borderColor": "#E2E8F0",
+      "fontHeading": "'DM Sans', sans-serif",
+      "fontBody": "'Inter', sans-serif",
+      "borderRadius": "12px",
+      "buttonStyle": "rounded",
+      "navStyle": "minimal",
+      "cardShadow": "0 1px 3px rgba(0,0,0,0.06)",
+      "heroStyle": "fullbleed"
+    }
+  },
+
+  "terminology": {
+    "item": "Product",
+    "items": "Products",
+    "browse": "Products",
+    "cart": "Applications",
+    "cartAction": "Apply Now",
+    "checkout": "Submit Application",
+    "order": "Application",
+    "orderConfirmation": "Application Submitted",
+    "detail": "Product Details",
+    "categories": "Product Categories",
+    "primaryCta": "Get Started",
+    "secondaryCta": "Explore Products"
+  },
+
+  "nav": [
+    { "label": "Home", "route": "/" },
+    { "label": "Products", "route": "/browse" },
+    { "label": "About", "route": "/about" },
+    { "label": "Contact", "route": "/contact" }
+  ],
+
+  "pages": {
+    "home": {
+      "heroTitle": "Your Money, Your Way",
+      "heroSubtitle": "Checking, savings, investments, and more — all in one secure platform designed around your financial goals.",
+      "heroCta": "Get Started",
+      "heroImage": "/assets/heroes/financial-hero.jpg",
+      "featuredSectionTitle": "Our Products",
+      "featuredItemsTitle": "Popular Right Now"
+    },
+    "browse": {
+      "title": "All Products",
+      "subtitle": "Explore our full suite of banking and financial products.",
+      "filterLabel": "Filter by Category",
+      "emptyState": "No products found in this category."
+    },
+    "detail": {
+      "sizeLabel": "Select Plan",
+      "addToCartLabel": "Apply Now",
+      "descriptionLabel": "Product Details",
+      "relatedTitle": "Related Products"
+    },
+    "cart": {
+      "title": "Your Applications",
+      "emptyState": "You have no pending applications. Explore our products!",
+      "subtotalLabel": "Estimated Value",
+      "checkoutCta": "Submit Application",
+      "continueShopping": "Explore More Products"
+    },
+    "checkout": {
+      "title": "Submit Your Application",
+      "shippingTitle": "Personal Information",
+      "paymentTitle": "Financial Details",
+      "reviewTitle": "Application Review",
+      "placeCta": "Submit Application"
+    },
+    "confirmation": {
+      "title": "Application Submitted!",
+      "message": "We've received your application. A financial advisor will review it and reach out within 1-2 business days.",
+      "orderNumberLabel": "Reference Number",
+      "continueCta": "Explore More Products"
+    },
+    "about": {
+      "title": "About ToggleBank",
+      "mission": "ToggleBank was built for the modern consumer. We combine the trust and security of traditional banking with the speed and simplicity of a digital-first experience. Your financial goals drive everything we build.",
+      "values": [
+        { "title": "Security First", "description": "Bank-grade encryption, FDIC insured deposits, and 24/7 fraud monitoring keep your money safe." },
+        { "title": "No Hidden Fees", "description": "Transparent pricing on every product. What you see is what you get — no surprises, no fine print." },
+        { "title": "Smart Tools", "description": "AI-powered insights, budgeting tools, and personalized recommendations help you make better financial decisions." }
+      ]
+    },
+    "contact": {
+      "title": "Contact Us",
+      "subtitle": "Our team of financial advisors is here to help with any questions.",
+      "formFields": ["name", "email", "message"],
+      "submitLabel": "Send Message",
+      "storeInfo": {
+        "address": "1 Embarcadero Center, Suite 1900, San Francisco, CA 94111",
+        "email": "support@togglebank.demo",
+        "phone": "(415) 555-0167"
+      }
+    }
+  },
+
+  "categories": {
+    "groups": [
+      {
+        "label": "Personal Banking",
+        "key": "personal",
+        "items": [
+          "Checking Accounts",
+          "Savings Accounts",
+          "Certificates of Deposit",
+          "Money Market Accounts",
+          "Personal Loans"
+        ]
+      },
+      {
+        "label": "Investing",
+        "key": "investing",
+        "items": [
+          "Brokerage Accounts",
+          "Retirement (IRA)",
+          "Robo-Advisory",
+          "Mutual Funds",
+          "Credit Cards"
+        ]
+      }
+    ]
+  }
+}

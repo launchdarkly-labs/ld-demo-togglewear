@@ -1,0 +1,158 @@
+{
+  "id": "retail",
+  "brand": {
+    "name": "ToggleWear",
+    "tagline": "Adventure starts with what you wear.",
+    "logo": "/assets/logos/togglewear.svg",
+    "favicon": "/assets/favicons/togglewear.ico"
+  },
+
+  "themes": {
+    "retro": {
+      "primaryColor": "#000080",
+      "secondaryColor": "#CC0000",
+      "accentColor": "#FFD700",
+      "backgroundColor": "#FFFFFF",
+      "surfaceColor": "#F0F0F0",
+      "textColor": "#000000",
+      "textMuted": "#333333",
+      "borderColor": "#999999",
+      "fontHeading": "'Times New Roman', serif",
+      "fontBody": "'Arial', 'Verdana', sans-serif",
+      "borderRadius": "0px",
+      "buttonStyle": "beveled",
+      "navStyle": "busy",
+      "cardShadow": "3px 3px 0px #999999",
+      "heroStyle": "banner"
+    },
+    "modern": {
+      "primaryColor": "#2D2D2D",
+      "secondaryColor": "#8B7355",
+      "accentColor": "#C4A77D",
+      "backgroundColor": "#FAFAF8",
+      "surfaceColor": "#FFFFFF",
+      "textColor": "#1A1A1A",
+      "textMuted": "#6B7280",
+      "borderColor": "#E5E7EB",
+      "fontHeading": "'DM Sans', sans-serif",
+      "fontBody": "'Inter', sans-serif",
+      "borderRadius": "12px",
+      "buttonStyle": "rounded",
+      "navStyle": "minimal",
+      "cardShadow": "0 1px 3px rgba(0,0,0,0.08)",
+      "heroStyle": "fullbleed"
+    }
+  },
+
+  "terminology": {
+    "item": "Product",
+    "items": "Products",
+    "browse": "Shop",
+    "cart": "Cart",
+    "cartAction": "Add to Cart",
+    "checkout": "Checkout",
+    "order": "Order",
+    "orderConfirmation": "Order Confirmation",
+    "detail": "Product Details",
+    "categories": "Categories",
+    "primaryCta": "Shop Now",
+    "secondaryCta": "View Collection"
+  },
+
+  "nav": [
+    { "label": "Home", "route": "/" },
+    { "label": "Shop", "route": "/browse" },
+    { "label": "About", "route": "/about" },
+    { "label": "Contact", "route": "/contact" }
+  ],
+
+  "pages": {
+    "home": {
+      "heroTitle": "Gear Up for Every Adventure",
+      "heroSubtitle": "Premium outdoor clothing built to perform — from summit to street.",
+      "heroCta": "Shop Now",
+      "heroImage": "/assets/heroes/retail-hero.jpg",
+      "featuredSectionTitle": "Featured Categories",
+      "featuredItemsTitle": "Trending Now"
+    },
+    "browse": {
+      "title": "Shop All",
+      "subtitle": "Browse our full collection of outdoor apparel.",
+      "filterLabel": "Filter by Category",
+      "emptyState": "No products found in this category."
+    },
+    "detail": {
+      "sizeLabel": "Select Size",
+      "addToCartLabel": "Add to Cart",
+      "descriptionLabel": "Description",
+      "relatedTitle": "You May Also Like"
+    },
+    "cart": {
+      "title": "Your Cart",
+      "emptyState": "Your cart is empty. Start shopping!",
+      "subtotalLabel": "Subtotal",
+      "checkoutCta": "Proceed to Checkout",
+      "continueShopping": "Continue Shopping"
+    },
+    "checkout": {
+      "title": "Checkout",
+      "shippingTitle": "Shipping Address",
+      "paymentTitle": "Payment Information",
+      "reviewTitle": "Order Review",
+      "placeCta": "Place Order"
+    },
+    "confirmation": {
+      "title": "Order Confirmed!",
+      "message": "Thank you for your order. Your gear is on its way!",
+      "orderNumberLabel": "Order Number",
+      "continueCta": "Continue Shopping"
+    },
+    "about": {
+      "title": "Our Story",
+      "mission": "At ToggleWear, we believe the best adventures start with the right gear. Born from a love of the outdoors, we craft clothing that moves with you — whether you're scaling a peak, exploring a new trail, or just enjoying the open air.",
+      "values": [
+        { "title": "Sustainably Made", "description": "Every piece is crafted with responsibility — recycled materials, ethical sourcing, and a commitment to reducing our footprint." },
+        { "title": "Built to Last", "description": "We design for durability. Our gear is tested in the harshest conditions so it holds up when it matters most." },
+        { "title": "For Everyone", "description": "The outdoors belongs to all of us. Our sizing, styles, and prices reflect that belief." }
+      ]
+    },
+    "contact": {
+      "title": "Get in Touch",
+      "subtitle": "Have a question or just want to say hi? We'd love to hear from you.",
+      "formFields": ["name", "email", "message"],
+      "submitLabel": "Send Message",
+      "storeInfo": {
+        "address": "1 Embarcadero Center, Suite 1900, San Francisco, CA 94111",
+        "email": "hello@togglewear.demo",
+        "phone": "(415) 555-0142"
+      }
+    }
+  },
+
+  "categories": {
+    "groups": [
+      {
+        "label": "Men's",
+        "key": "mens",
+        "items": [
+          "Jackets & Vests",
+          "Fleece & Sweaters",
+          "Shirts & Tops",
+          "Pants & Shorts",
+          "Base Layers"
+        ]
+      },
+      {
+        "label": "Women's",
+        "key": "womens",
+        "items": [
+          "Jackets & Vests",
+          "Fleece & Sweaters",
+          "Tops & T-Shirts",
+          "Pants & Leggings",
+          "Dresses & Skirts"
+        ]
+      }
+    ]
+  }
+}
