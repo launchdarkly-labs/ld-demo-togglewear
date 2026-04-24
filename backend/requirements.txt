@@ -1,7 +1,9 @@
-flask>=3.1,<4
+flask>=3.0,<4
 flask-cors>=5.0,<6
-python-dotenv>=1.1,<2
-boto3>=1.38,<2
-launchdarkly-server-sdk>=9.15,<10
-launchdarkly-observability>=1.2,<2
+python-dotenv>=1.0,<2
+boto3>=1.35,<2
+launchdarkly-server-sdk>=9.8,<9.15
 gunicorn>=23.0,<24
+# Requires Python 3.10+ (uncomment when upgrading Python):
+# launchdarkly-server-sdk>=9.15,<10
+# launchdarkly-observability>=1.2,<2
