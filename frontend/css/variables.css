@@ -1,0 +1,32 @@
+/*
+ * CSS custom properties are set dynamically by SkinManager.applyThemeTokens().
+ * These fallbacks only apply before a skin is loaded.
+ */
+:root {
+  --color-primary: #2D2D2D;
+  --color-secondary: #8B7355;
+  --color-accent: #C4A77D;
+  --color-bg: #FAFAF8;
+  --color-surface: #FFFFFF;
+  --color-text: #1A1A1A;
+  --color-text-muted: #6B7280;
+  --color-border: #E5E7EB;
+  --font-heading: 'DM Sans', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --radius: 12px;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.08);
+
+  --nav-height: 64px;
+  --max-width: 1200px;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 40px;
+  --spacing-2xl: 64px;
+
+  --transition-fast: 150ms ease;
+  --transition-base: 250ms ease;
+  --transition-slow: 400ms ease;
+  --transition-theme: 600ms ease;
+}
