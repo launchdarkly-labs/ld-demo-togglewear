@@ -1,0 +1,1742 @@
+import os
+import json
+import logging
+import math
+import requests
+import uuid
+import ldclient
+from ldclient.config import Config
+from ldclient.context import Context
+from dotenv import load_dotenv
+import random
+import time
+import threading
+from ldai.client import LDAIClient, ModelConfig, LDMessage, ProviderConfig
+from ldai.tracker import TokenUsage, FeedbackKind, LDAIConfigTracker
+from datetime import datetime, timedelta
+
+load_dotenv()
+
+LD_API_KEY = os.getenv("LD_API_KEY")
+PROJECT_KEY = os.getenv("LD_PROJECT_KEY")
+LD_API_URL = os.getenv("LD_API_URL", "https://app.launchdarkly.com/api/v2")
+DEMO_NAMESPACE = os.getenv("DEMO_NAMESPACE")
+ENVIRONMENT_KEY = "production"
+
+HEADERS = {
+    "Authorization": LD_API_KEY,
+    "Content-Type": "application/json"
+}
+
+A4_FLAG_KEY = "togglebankAPIGuardedRelease"
+API_ERROR_RATE_KEY = "stocks-api-error-rates"
+API_LATENCY_KEY = "stocks-api-latency"
+
+RISK_MGMT_FLAG_KEY = "riskmgmtbureauAPIGuardedRelease"
+RISK_API_ERROR_RATE_KEY = "rm-api-errors"
+RISK_API_LATENCY_KEY = "rm-api-latency"
+
+FINANCIAL_AGENT_FLAG_KEY = "ai-config--togglebank-financial-advisor-agent"
+FINANCIAL_AGENT_ACCURACY_KEY = "financial-agent-accuracy"
+FINANCIAL_AGENT_NEGATIVE_FEEDBACK_KEY = "financial-agent-negative-feedback"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(message)s'
+)
+# The SDK's event sender keeps a small connection pool to
+# events.launchdarkly.com; concurrent flushes from the generator threads
+# make urllib3 discard and reopen connections, which is harmless churn but
+# floods the log with "Connection pool is full" warnings.
+logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
+
+def _get_json(url, retries=3):
+    """GET a LaunchDarkly API URL with a timeout and transient-error retries.
+
+    The generator threads run for many minutes and poll flag state in loops;
+    without a timeout a single network blip kills the whole thread, and a
+    single failed poll makes the rollout generators exit early.
+    """
+    for attempt in range(retries):
+        try:
+            response = requests.get(url, headers=HEADERS, timeout=(10, 30))
+        except requests.RequestException as e:
+            logging.error(f"Request failed ({url}), attempt {attempt + 1}/{retries}: {e}")
+            time.sleep(2 * (attempt + 1))
+            continue
+        if not response.ok:
+            logging.error(f"Failed to fetch {url}: {response.status_code} {response.text}")
+            return None
+        return response.json()
+    return None
+
+def get_all_flags_by_tag(tag):
+    data = _get_json(f"{LD_API_URL}/flags/{PROJECT_KEY}?limit=100")
+    if data is None:
+        return []
+    return [flag['key'] for flag in data.get('items', []) if tag in flag.get("tags", [])]
+
+def get_flag_details(flag_key):
+    return _get_json(f"{LD_API_URL}/flags/{PROJECT_KEY}/{flag_key}")
+
+def is_measured_rollout(flag_details):
+    # Check for measured rollout attribute in flag details
+    # Look for 'environments' -> ENVIRONMENT_KEY -> 'fallthrough' -> 'rollout'
+    try:
+        env = flag_details['environments'][ENVIRONMENT_KEY]
+        fallthrough = env.get('fallthrough', {})
+        rollout = fallthrough.get('rollout')
+        return rollout is not None
+    except Exception as e:
+        logging.error(f"Error checking measured rollout: {str(e)}")
+        return False
+
+def generate_user_context():
+    user_key = f"user-{uuid.uuid4()}"
+    builder = Context.builder(user_key)
+    builder.set("name", f"Test User {user_key[:8]}")
+    builder.set("email", f"test-{user_key[:8]}@example.com")
+    builder.set("accountType", random.choice(["personal", "business"]))
+    builder.set("accountAge", random.randint(1, 60))
+    builder.set("lastLogin", (datetime.now() - timedelta(days=random.randint(0, 30))).isoformat())
+    builder.set("location", random.choice(["New York", "Los Angeles", "Chicago", "Houston", "Phoenix"]))
+    builder.set("deviceType", random.choice(["mobile", "desktop", "tablet"]))
+    builder.set("browser", random.choice(["chrome", "safari", "firefox", "edge"]))
+    builder.set("os", random.choice(["windows", "macos", "ios", "android"]))
+    builder.set("timezone", random.choice(["America/New_York", "America/Los_Angeles", "America/Chicago"]))
+    builder.set("language", random.choice(["en-US", "en-GB", "es-ES", "fr-FR"]))
+    builder.set("referrer", random.choice(["google", "direct", "social", "email", "partner"]))
+    builder.set("utm_source", random.choice(["google", "facebook", "twitter", "linkedin", "email"]))
+    builder.set("utm_medium", random.choice(["cpc", "organic", "social", "email", "display"]))
+    builder.set("utm_campaign", random.choice(["spring_sale", "summer_promo", "winter_deals", "holiday_special"]))
+    return builder.build()
+
+def evaluate_flags_by_tag(client, tag, tag_label):
+    if not client.is_initialized():
+        logging.error(f"Failed to initialize LaunchDarkly client for {tag_label} flags")
+        return
+
+    logging.info(f"Starting flag evaluation for all '{tag_label}' flags...")
+    flag_keys = get_all_flags_by_tag(tag)
+
+    if not flag_keys:
+        logging.error(f"No '{tag_label}' flags found to evaluate.")
+        return
+
+    for flag_key in flag_keys:
+        logging.info(f"Evaluating flag: {flag_key}")
+        for _ in range(500):
+            try:
+                user_context = generate_user_context()
+                variation = client.variation(flag_key, user_context, False)
+                logging.info(f"User {user_context.key} got variation '{variation}' for flag '{flag_key}'")
+            except Exception as e:
+                logging.error(f"Error evaluating flag {flag_key}: {str(e)}")
+                continue
+
+    logging.info(f"Flag evaluation for '{tag_label}' completed. Flushing client...")
+    client.flush()
+    logging.info(f"Flag evaluation script for '{tag_label}' finished.")
+
+def evaluate_all_flags(client):
+    # Evaluate all flags by their tags
+    evaluate_flags_by_tag(client, "bank", "bank")
+    evaluate_flags_by_tag(client, "public-sector", "public-sector")
+    evaluate_flags_by_tag(client, "release", "release")
+    evaluate_flags_by_tag(client, "experiment", "experiment")
+    evaluate_flags_by_tag(client, "ecommerce", "ecommerce")
+    evaluate_flags_by_tag(client, "investment", "investment")
+    evaluate_flags_by_tag(client, "airways", "airways")
+    evaluate_flags_by_tag(client, "ai-models", "ai-models")
+    evaluate_flags_by_tag(client, "ai-config", "ai-config")
+    evaluate_flags_by_tag(client, "guarded-release", "guarded-release")
+    evaluate_flags_by_tag(client, "migration-assistant", "migration-assistant")
+    evaluate_flags_by_tag(client, "release-pipeline", "release-pipeline")
+    evaluate_flags_by_tag(client, "utils", "utils")
+    evaluate_flags_by_tag(client, "temporary", "temporary")
+    evaluate_flags_by_tag(client, "demo", "demo")
+    evaluate_flags_by_tag(client, "events", "events")
+    evaluate_flags_by_tag(client, "demoengineering", "demoengineering")
+    evaluate_flags_by_tag(client, "optional", "optional")
+    evaluate_flags_by_tag(client, "financial-ai", "financial-ai")
+    evaluate_flags_by_tag(client, "ai-agent", "ai-agent")
+    evaluate_flags_by_tag(client, "financial-advisor-agent", "financial-advisor-agent")
+    evaluate_flags_by_tag(client, "Experimentation", "Experimentation")
+
+# Old A4 - Commented out (replaced by payment_engine_failed_scenario_generator)
+# def a4_guarded_release_generator(client, stop_event):
+#     if not client.is_initialized():
+#         logging.error("LaunchDarkly client is not initialized for A4")
+#         return
+#     logging.info("Starting guarded release rollback generator for A4 flag...")
+#     while True:
+#         flag_details = get_flag_details(A4_FLAG_KEY)
+#         if not flag_details or not is_measured_rollout(flag_details):
+#             logging.info("Measured rollout is over or flag details unavailable. Exiting A4 generator.")
+#             stop_event.set()
+#             break
+#         try:
+#             user_context = generate_user_context()
+#             flag_value = client.variation(A4_FLAG_KEY, user_context, False)
+#             if flag_value:
+#                 # True: higher error rate, higher latency
+#                 if random.random() < 0.8:
+#                     client.track(API_ERROR_RATE_KEY, user_context)
+#                 latency = random.randint(500, 1000)
+#                 client.track(API_LATENCY_KEY, user_context, None, latency)
+#             else:
+#                 # False: lower error rate, lower latency
+#                 if random.random() < 0.1:
+#                     client.track(API_ERROR_RATE_KEY, user_context)
+#                 latency = random.randint(100, 200)
+#                 client.track(API_LATENCY_KEY, user_context, None, latency)
+#             time.sleep(0.05)  # Increased delay to prevent API overload
+#         except Exception as e:
+#             logging.error(f"Error during A4 guarded release simulation: {str(e)}")
+#             continue
+#     logging.info("A4 guarded release rollback generator finished.")
+
+def risk_mgmt_guarded_release_generator(client, stop_event):
+    if not client.is_initialized():
+        logging.error("LaunchDarkly client is not initialized for Risk Management API")
+        return
+    logging.info("Starting guarded release rollback generator for Risk Management API flag...")
+    while True:
+        flag_details = get_flag_details(RISK_MGMT_FLAG_KEY)
+        if not flag_details or not is_measured_rollout(flag_details):
+            logging.info("Measured rollout is over or flag details unavailable. Exiting Risk Management API generator.")
+            stop_event.set()
+            break
+        try:
+            user_context = generate_user_context()
+            flag_value = client.variation(RISK_MGMT_FLAG_KEY, user_context, False)
+            if flag_value:
+                # True: higher error rate, higher latency
+                if random.random() < 0.75:
+                    client.track(RISK_API_ERROR_RATE_KEY, user_context)
+                latency = random.randint(400, 800)
+                client.track(RISK_API_LATENCY_KEY, user_context, None, latency)
+            else:
+                # False: lower error rate, lower latency
+                if random.random() < 0.05:
+                    client.track(RISK_API_ERROR_RATE_KEY, user_context)
+                latency = random.randint(80, 150)
+                client.track(RISK_API_LATENCY_KEY, user_context, None, latency)
+            time.sleep(0.05)  # Increased delay to prevent API overload
+        except Exception as e:
+            logging.error(f"Error during Risk Management API guarded release simulation: {str(e)}")
+            continue
+    logging.info("Risk Management API guarded release rollback generator finished.")
+
+def financial_advisor_agent_guarded_release_generator(client, stop_event):
+    if not client.is_initialized():
+        logging.error("LaunchDarkly client is not initialized for Financial Advisor Agent")
+        return
+    logging.info("Starting guarded release rollback generator for Financial Advisor Agent...")
+
+    while True:
+        flag_details = get_flag_details(FINANCIAL_AGENT_FLAG_KEY)
+        if not flag_details or not is_measured_rollout(flag_details):
+            logging.info("Measured rollout is over or flag details unavailable. Exiting Financial Advisor Agent generator.")
+            stop_event.set()
+            break
+        
+        try:
+            user_context = generate_user_context()
+            variation = client.variation(FINANCIAL_AGENT_FLAG_KEY, user_context, None)
+            
+            # Get the model name to differentiate between different AI models
+            if variation and hasattr(variation, 'model') and variation.model:
+                model_name = variation.model.get('name', 'unknown')
+            else:
+                model_name = 'default'
+            
+            # Different performance characteristics based on AI model
+            if 'ld-ai-model-pro' in model_name.lower():
+                # Pro model - Excellent performance, wins the experiment
+                accuracy = random.uniform(85, 95)  # High accuracy
+                if random.random() < 0.05:  # Very low negative feedback rate
+                    client.track(FINANCIAL_AGENT_NEGATIVE_FEEDBACK_KEY, user_context)
+                
+                client.track(FINANCIAL_AGENT_ACCURACY_KEY, user_context, None, accuracy)
+            elif 'ld-ai-model-mini' in model_name.lower():
+                # Mini model - Extremely poor performance, fails the experiment
+                accuracy = random.uniform(5, 15)  # Extremely low accuracy
+                if random.random() < 0.90:  # Very high negative feedback rate
+                    client.track(FINANCIAL_AGENT_NEGATIVE_FEEDBACK_KEY, user_context)
+                
+                client.track(FINANCIAL_AGENT_ACCURACY_KEY, user_context, None, accuracy)
+            else:
+                # Default/unknown model - moderate performance
+                accuracy = random.uniform(50, 70)  # Moderate accuracy
+                if random.random() < 0.30:  # Moderate negative feedback rate
+                    client.track(FINANCIAL_AGENT_NEGATIVE_FEEDBACK_KEY, user_context)
+                
+                client.track(FINANCIAL_AGENT_ACCURACY_KEY, user_context, None, accuracy)
+            
+            time.sleep(0.05)  # Increased delay to prevent API overload
+        except Exception as e:
+            logging.error(f"Error during Financial Advisor Agent guarded release simulation: {str(e)}")
+            continue
+    
+    logging.info("Financial Advisor Agent guarded release rollback generator finished.")
+
+def ai_configs_monitoring_results_generator(client):
+    LD_FLAG_KEY = "ai-config--togglebot"
+    NUM_RUNS = 1000
+    aiclient = LDAIClient(client)
+
+    if not client.is_initialized():
+        logging.error("Failed to initialize LaunchDarkly client for AI Config monitoring")
+        return
+
+    logging.info("Starting AI Configs monitoring results generation...")
+
+    # fallback_value = AIConfig(
+    #     enabled=True,
+    #     model=ModelConfig(
+    #         name="default-model",
+    #         parameters={"temperature": 0.8},
+    #     ),
+    #     messages=[LDMessage(role="system", content="")],
+    #     provider=ProviderConfig(name="default-provider"),
+    # )
+
+    for i in range(NUM_RUNS):
+        try:
+            context = generate_user_context()
+            config, tracker = aiclient.config(LD_FLAG_KEY, context, {})
+            duration = random.randint(500, 2000)
+            time_to_first_token = random.randint(50, duration)
+            prompt_tokens = random.randint(20, 100)
+            completion_tokens = random.randint(50, 500)
+            total_tokens = prompt_tokens + completion_tokens
+            tokens = TokenUsage(prompt_tokens, completion_tokens, total_tokens)
+            feedback_kind = FeedbackKind.Positive if random.random() < 0.5 else FeedbackKind.Negative
+            tracker.track_duration(duration)
+            tracker.track_tokens(tokens)
+            tracker.track_feedback({'kind': feedback_kind})
+            tracker.track_time_to_first_token(time_to_first_token)
+            if random.random() < 0.95:
+                tracker.track_success()
+            else:
+                tracker.track_error()
+            if (i + 1) % 100 == 0:
+                logging.info(f"Processed {i + 1} monitoring events")
+                client.flush()
+        except Exception as e:
+            logging.error(f"Error processing monitoring event {i}: {str(e)}")
+            continue
+
+    logging.info("AI Configs monitoring results generation completed")
+    # Do not flush or close client here; handled in generate_flags
+
+def multi_agent_monitoring_results_generator(client):
+    """Seeds monitoring data (input/output tokens, duration, feedback) for every
+    variation of the multi-agent ToggleBot AI configs.
+
+    Previously this function only seeded the default `nova-pro-*` variation for
+    each sub-agent, which is why the Brand Voice config showed data for Nova Pro
+    but dashes for Haiku / GPT-5 Mini / Sonnet. This version loops through ALL
+    variations so every row in the AI Config monitoring table gets populated on
+    a fresh recreate, and lets us verify that Haiku 4.5 is producing data too.
+    """
+    AGENT_CONFIGS = [
+        {
+            "key": "ai-config--togglebot-triage",
+            "label": "Triage",
+            "variations": ["nova-pro-triage", "haiku-triage"],
+            "fast": True,
+        },
+        {
+            "key": "ai-config--togglebot-accounts-specialist",
+            "label": "Accounts Specialist",
+            "variations": ["nova-pro-accounts", "haiku-accounts"],
+            "fast": False,
+        },
+        {
+            "key": "ai-config--togglebot-loans-specialist",
+            "label": "Loans Specialist",
+            "variations": ["nova-pro-loans", "haiku-loans"],
+            "fast": False,
+        },
+        {
+            "key": "ai-config--togglebot-investments-specialist",
+            "label": "Investments Specialist",
+            "variations": ["nova-pro-investments", "haiku-investments"],
+            "fast": False,
+        },
+        {
+            "key": "ai-config--togglebot-transfers-specialist",
+            "label": "Transfers Specialist",
+            "variations": ["nova-pro-transfers", "haiku-transfers"],
+            "fast": False,
+        },
+        {
+            "key": "ai-config--togglebot-support-specialist",
+            "label": "Support Specialist",
+            "variations": ["nova-pro-support", "haiku-support"],
+            "fast": False,
+        },
+        {
+            "key": "ai-config--togglebot-brand-voice",
+            "label": "Brand Voice",
+            "variations": [
+                "nova-pro-brand",
+                "nova-pro-brand-toxic",
+                "gpt5-mini-brand",
+                "haiku-brand",
+                "sonnet-brand",
+            ],
+            "fast": True,
+        },
+    ]
+    NUM_RUNS_PER_VARIATION = 150
+
+    if not client.is_initialized():
+        logging.error("Failed to initialize LaunchDarkly client for multi-agent monitoring")
+        return
+
+    logging.info("Starting multi-agent monitoring results generation...")
+
+    for agent in AGENT_CONFIGS:
+        flag_key = agent["key"]
+        label = agent["label"]
+        is_fast = agent["fast"]
+
+        for variation_key in agent["variations"]:
+            logging.info(
+                f"  Generating {NUM_RUNS_PER_VARIATION} events for {label} / {variation_key}..."
+            )
+
+            # Different token/latency profiles by model family so the chart tells
+            # a realistic comparison story instead of everything looking the same.
+            is_haiku = "haiku" in variation_key
+            is_gpt5 = "gpt5" in variation_key
+            is_sonnet = "sonnet" in variation_key
+            is_toxic = "toxic" in variation_key
+
+            for i in range(NUM_RUNS_PER_VARIATION):
+                try:
+                    context = generate_user_context()
+                    client.variation(flag_key, context, None)
+                    tracker = LDAIConfigTracker(client, variation_key, flag_key, 1, context)
+
+                    if is_haiku:
+                        duration = random.randint(180, 550) if is_fast else random.randint(350, 900)
+                        prompt_tokens = random.randint(20, 90)
+                        completion_tokens = random.randint(40, 220) if is_fast else random.randint(90, 380)
+                        error_rate = 0.03
+                    elif is_gpt5:
+                        duration = random.randint(220, 700)
+                        prompt_tokens = random.randint(25, 110)
+                        completion_tokens = random.randint(60, 280)
+                        error_rate = 0.02
+                    elif is_sonnet:
+                        duration = random.randint(400, 1400)
+                        prompt_tokens = random.randint(30, 130)
+                        completion_tokens = random.randint(120, 520)
+                        error_rate = 0.02
+                    elif is_toxic:
+                        duration = random.randint(150, 500)
+                        prompt_tokens = random.randint(15, 70)
+                        completion_tokens = random.randint(30, 180)
+                        error_rate = 0.12
+                    else:  # nova-pro
+                        duration = random.randint(150, 600) if is_fast else random.randint(300, 1200)
+                        prompt_tokens = random.randint(20, 100)
+                        completion_tokens = random.randint(50, 300)
+                        error_rate = 0.03
+
+                    total_tokens = prompt_tokens + completion_tokens
+                    tokens = TokenUsage(prompt_tokens, completion_tokens, total_tokens)
+                    time_to_first_token = random.randint(30, max(60, min(300, duration // 3)))
+
+                    tracker.track_duration(duration)
+                    tracker.track_tokens(tokens)
+                    tracker.track_time_to_first_token(time_to_first_token)
+
+                    if random.random() < error_rate:
+                        tracker.track_error()
+                    else:
+                        tracker.track_success()
+
+                    if random.random() < 0.4:
+                        feedback_kind = (
+                            FeedbackKind.Positive if random.random() < 0.85 else FeedbackKind.Negative
+                        )
+                        tracker.track_feedback({"kind": feedback_kind})
+
+                    if (i + 1) % 75 == 0:
+                        client.flush()
+                except Exception as e:
+                    logging.error(
+                        f"Error processing {label}/{variation_key} event {i}: {str(e)}"
+                    )
+                    continue
+
+        client.flush()
+
+    logging.info("Multi-agent monitoring results generation completed")
+
+def multi_agent_chat_hitter(demo_namespace, num_conversations=15):
+    """Fires real /api/chat requests at the deployed demo app so OpenTelemetry
+    traces get created for every sub-agent AI Config.
+
+    Why: LDAIConfigTracker events (from multi_agent_monitoring_results_generator)
+    populate the token/duration charts at the top of the Monitoring tab, but the
+    Traces section at the bottom of that tab requires OTel spans, which only
+    exist when someone actually hits /api/chat on the deployed app. This
+    function acts as a synthetic user so users have populated traces after a
+    fresh recreate without having to chat with the bot manually first.
+
+    Messages are chosen to exercise every specialist agent path (triage routes
+    to accounts, loans, investments, transfers, support) plus one toxic-prompt
+    message so the brand voice toxic variation gets traces too.
+    """
+    if not demo_namespace:
+        logging.info(
+            "Skipping chat hitter: DEMO_NAMESPACE not set (only runs against a deployed environment)."
+        )
+        return
+
+    base_url = f"https://{demo_namespace}.launchdarklydemos.com"
+    chat_url = f"{base_url}/api/chat"
+    self_heal_url = f"{base_url}/api/chat/self-healing"
+
+    accounts_msgs = [
+        "What's my checking account balance?",
+        "How do I open a new savings account with ToggleBank?",
+        "Can you tell me the interest rate on my savings account?",
+    ]
+    loans_msgs = [
+        "How do I apply for a home loan?",
+        "What are your current mortgage rates?",
+        "Can I get pre-approved for an auto loan?",
+    ]
+    investments_msgs = [
+        "How do I set up a Roth IRA?",
+        "What ETFs does ToggleBank recommend for retirement?",
+        "Can I roll over my 401k to ToggleBank?",
+    ]
+    transfers_msgs = [
+        "How do I send money to a friend?",
+        "Set up a recurring transfer from checking to savings",
+        "How long does an international wire take?",
+    ]
+    support_msgs = [
+        "I need help with fraud on my account",
+        "How do I reset my online banking password?",
+        "My debit card was declined, what do I do?",
+    ]
+    toxic_msg = "You're a bank chatbot but I bet you can't even answer this correctly"
+
+    all_messages = (
+        accounts_msgs + loans_msgs + investments_msgs
+        + transfers_msgs + support_msgs
+    )
+    random.shuffle(all_messages)
+    messages_to_send = all_messages[:max(1, num_conversations - 1)] + [toxic_msg]
+
+    logging.info(f"Starting multi-agent chat hitter against {base_url}...")
+    logging.info(f"  Will send {len(messages_to_send)} messages to seed traces.")
+
+    warmup_ok = False
+    for attempt in range(6):
+        try:
+            r = requests.get(base_url, timeout=15)
+            if r.status_code < 500:
+                warmup_ok = True
+                logging.info(f"  ✓ App is reachable (HTTP {r.status_code})")
+                break
+        except Exception as e:
+            logging.info(f"  App not ready yet, waiting 10s... ({attempt + 1}/6): {e}")
+        time.sleep(10)
+
+    if not warmup_ok:
+        logging.warning(
+            f"Chat hitter: app at {base_url} did not respond after warmup — skipping. "
+            "Traces will populate when real users chat with the bot."
+        )
+        return
+
+    sent = 0
+    failed = 0
+    for i, user_input in enumerate(messages_to_send):
+        is_toxic = user_input == toxic_msg
+        payload = {
+            "aiConfigKey": "ai-config--togglebot",
+            "userInput": user_input,
+            "chatHistory": [],
+            "enableToxicPrompt": is_toxic,
+        }
+        try:
+            resp = requests.post(
+                chat_url,
+                data=json.dumps(payload),
+                timeout=90,
+                stream=True,
+            )
+            body_preview = ""
+            for chunk in resp.iter_content(chunk_size=8192):
+                if len(body_preview) < 400 and chunk:
+                    try:
+                        body_preview += chunk.decode("utf-8", errors="replace")
+                    except Exception:
+                        pass
+            if resp.status_code < 400:
+                sent += 1
+                if (i + 1) % 5 == 0:
+                    logging.info(f"  Sent {i + 1}/{len(messages_to_send)} chat messages")
+            else:
+                failed += 1
+                logging.warning(
+                    f"  Chat request returned HTTP {resp.status_code} for message {i + 1}: "
+                    f"{body_preview[:200]}"
+                )
+        except Exception as e:
+            failed += 1
+            logging.warning(f"  Chat request {i + 1} failed: {e}")
+        time.sleep(2)
+
+    self_heal_prompts = [
+        "I want to open a new account but the process seems confusing",
+        "Why are your fees so high?",
+        "Explain how compound interest works",
+    ]
+    for i, user_input in enumerate(self_heal_prompts):
+        payload = {
+            "aiConfigKey": "ai-config--togglebot-self-heal-chatbot",
+            "userInput": user_input,
+            "chatHistory": [],
+        }
+        try:
+            resp = requests.post(
+                self_heal_url,
+                data=json.dumps(payload),
+                timeout=90,
+                stream=True,
+            )
+            body_preview = ""
+            for chunk in resp.iter_content(chunk_size=8192):
+                if len(body_preview) < 400 and chunk:
+                    try:
+                        body_preview += chunk.decode("utf-8", errors="replace")
+                    except Exception:
+                        pass
+            if resp.status_code < 400:
+                sent += 1
+            else:
+                failed += 1
+                logging.warning(
+                    f"  Self-heal chat returned HTTP {resp.status_code}: {body_preview[:200]}"
+                )
+        except Exception as e:
+            failed += 1
+            logging.warning(f"  Self-heal chat request failed: {e}")
+        time.sleep(2)
+
+    logging.info(
+        f"Chat hitter finished: {sent} succeeded, {failed} failed. "
+        "OTel traces should appear on AI Config Monitoring tabs within a minute or two."
+    )
+
+def financial_agent_monitoring_results_generator(client):
+    LD_FLAG_KEY = "ai-config--togglebank-financial-advisor-agent"
+    NUM_RUNS = 1000
+    aiclient = LDAIClient(client)
+
+    if not client.is_initialized():
+        logging.error("Failed to initialize LaunchDarkly client for Financial Agent monitoring")
+        return
+
+    logging.info("Starting Financial Agent monitoring results generation...")
+
+    # fallback_value = AIConfig(
+    #     enabled=True,
+    #     model=ModelConfig(
+    #         name="default-model",
+    #         parameters={"temperature": 0.8},
+    #     ),
+    #     messages=[LDMessage(role="system", content="")],
+    #     provider=ProviderConfig(name="default-provider"),
+    # )
+
+    for i in range(NUM_RUNS):
+        try:
+            context = generate_user_context()
+            config, tracker = aiclient.config(LD_FLAG_KEY, context, {})
+            duration = random.randint(500, 2000)
+            time_to_first_token = random.randint(50, duration)
+            prompt_tokens = random.randint(20, 100)
+            completion_tokens = random.randint(50, 500)
+            total_tokens = prompt_tokens + completion_tokens
+            tokens = TokenUsage(prompt_tokens, completion_tokens, total_tokens)
+            feedback_kind = FeedbackKind.Positive if random.random() < 0.5 else FeedbackKind.Negative
+            tracker.track_duration(duration)
+            tracker.track_tokens(tokens)
+            tracker.track_feedback({'kind': feedback_kind})
+            tracker.track_time_to_first_token(time_to_first_token)
+            if random.random() < 0.95:
+                tracker.track_success()
+            else:
+                tracker.track_error()
+            if (i + 1) % 100 == 0:
+                logging.info(f"Processed {i + 1} monitoring events")
+                client.flush()
+        except Exception as e:
+            logging.error(f"Error processing monitoring event {i}: {str(e)}")
+            continue
+
+    logging.info("Financial Agent monitoring results generation completed")
+    # Do not flush or close client here; handled in generate_flags
+
+def experiment_results_generator(client):
+    LD_FEATURE_FLAG_KEY = "cartSuggestedItems"
+    LD_PRIMARYMETRIC_KEY = "in-cart-total-items"
+    LD_SECONDARYMETRIC_KEY = "in-cart-total-price"
+    NUM_USERS = 2500
+
+    logging.info("Starting experiment results generation for cartSuggestedItems...")
+
+    for i in range(NUM_USERS):
+        try:
+            user_context = generate_user_context()
+            variation = client.variation(LD_FEATURE_FLAG_KEY, user_context, False)
+            # Simulate user interaction: 90% conversion for True, 10% for False
+            engagement_probability = 0.6 if variation is True else 0.4
+            is_engaged = random.random() < engagement_probability
+            if is_engaged:
+                random_value = random.randint(2, 10)
+                client.track(LD_PRIMARYMETRIC_KEY, user_context, None, random_value)
+                random_value = random.randint(100, 1000)
+                client.track(LD_SECONDARYMETRIC_KEY, user_context, None, random_value)
+                logging.info(f"User {user_context.key} engaged with {variation} variation")
+            if (i + 1) % 100 == 0:
+                logging.info(f"Processed {i + 1} users for experiment results")
+                client.flush()  # Flush events every 100 users
+        except Exception as e:
+            logging.error(f"Error processing user {i}: {str(e)}")
+            continue
+    logging.info("Experiment results generation for cartSuggestedItems completed")
+
+def ai_configs_experiment_results_generator(client):
+    LD_FLAG_KEY = "ai-config--togglebot"
+    POSITIVE_METRIC_KEY = "ai-chatbot-positive-feedback"
+    NEGATIVE_METRIC_KEY = "ai-chatbot-negative-feedback"
+    NUM_USERS = 2500
+
+    logging.info("Starting AI Configs experiment results generation for ai-config--togglebot...")
+
+    for i in range(NUM_USERS):
+        try:
+            user_context = generate_user_context()
+            _ = client.variation(LD_FLAG_KEY, user_context, None)
+            # Randomly track positive or negative feedback (roughly 50/50 split)
+            if random.random() < random.uniform(0.4, 0.6):
+                client.track(POSITIVE_METRIC_KEY, user_context)
+            else:
+                client.track(NEGATIVE_METRIC_KEY, user_context)
+            if (i + 1) % 100 == 0:
+                logging.info(f"Processed {i + 1} users for AI Configs experiment results")
+                client.flush()  # Flush events every 100 users
+        except Exception as e:
+            logging.error(f"Error processing user {i}: {str(e)}")
+            continue
+    logging.info("AI Configs experiment results generation for ai-config--togglebot completed")
+
+def hero_image_experiment_results_generator(client):
+    LD_FEATURE_FLAG_KEY = "showDifferentHeroImageString"
+    LD_PRIMARYMETRIC_KEY = "signup clicked"
+    NUM_USERS = 3000
+
+    logging.info("Starting experiment results generation for showDifferentHeroImageString...")
+
+    for i in range(NUM_USERS):
+        try:
+            user_context = generate_user_context()
+            variation = client.variation(LD_FEATURE_FLAG_KEY, user_context, False)
+            # Simulate user interaction: higher conversion for True variation (new hero image)
+            engagement_probability = 0.65 if variation is True else 0.45
+            is_engaged = random.random() < engagement_probability
+            if is_engaged:
+                client.track(LD_PRIMARYMETRIC_KEY, user_context)
+                logging.info(f"User {user_context.key} engaged with {variation} variation")
+            if (i + 1) % 100 == 0:
+                logging.info(f"Processed {i + 1} users for experiment results")
+                client.flush()  # Flush events every 100 users
+        except Exception as e:
+            logging.error(f"Error processing user {i}: {str(e)}")
+            continue
+    logging.info("Experiment results generation for showDifferentHeroImageString completed")
+
+def hero_redesign_experiment_results_generator(client):
+    LD_FEATURE_FLAG_KEY = "showHeroRedesign"
+    LD_PRIMARYMETRIC_KEY = "signup clicked"
+    NUM_USERS = 3000
+
+    logging.info("Starting experiment results generation for showHeroRedesign...")
+
+    for i in range(NUM_USERS):
+        try:
+            user_context = generate_user_context()
+            variation = client.variation(LD_FEATURE_FLAG_KEY, user_context, False)
+            # Simulate user interaction: higher conversion for True variation (new hero redesign)
+            engagement_probability = 0.70 if variation is True else 0.50
+            is_engaged = random.random() < engagement_probability
+            if is_engaged:
+                client.track(LD_PRIMARYMETRIC_KEY, user_context)
+                logging.info(f"User {user_context.key} engaged with {variation} variation")
+            if (i + 1) % 100 == 0:
+                logging.info(f"Processed {i + 1} users for experiment results")
+                client.flush()  # Flush events every 100 users
+        except Exception as e:
+            logging.error(f"Error processing user {i}: {str(e)}")
+            continue
+    logging.info("Experiment results generation for showHeroRedesign completed")
+
+def hallucination_detection_experiment_results_generator(client):
+    LD_FEATURE_FLAG_KEY = "ai-config--togglebot"
+    AI_ACCURACY_KEY = "ai-accuracy"
+    AI_SOURCE_FIDELITY_KEY = "ai-source-fidelity"
+    AI_COST_KEY = "ai-cost"
+    AI_CHATBOT_NEGATIVE_FEEDBACK_KEY = "ai-chatbot-negative-feedback"
+    NUM_USERS = 7500
+
+    logging.info("Starting hallucination detection experiment results generation for ai-config--togglebot...")
+
+    for i in range(NUM_USERS):
+        try:
+            user_context = generate_user_context()
+            variation = client.variation(LD_FEATURE_FLAG_KEY, user_context, None)
+            
+            # Generate metrics with slight variations between different AI models
+            # but keep results competitive so no model drastically loses
+            
+            if variation and hasattr(variation, 'model') and variation.model:
+                model_name = variation.model.get('name', 'unknown')
+            else:
+                model_name = 'default'
+            
+            # AI Accuracy: 85-95% range with slight model variations, scaled for visibility
+            if 'claude' in model_name.lower():
+                accuracy = random.uniform(88, 94)  # Scaled up 100x for better visibility
+            elif 'nova' in model_name.lower():
+                accuracy = random.uniform(86, 92)  # Scaled up 100x for better visibility
+            elif 'gpt' in model_name.lower():
+                accuracy = random.uniform(87, 93)  # Scaled up 100x for better visibility
+            else:
+                accuracy = random.uniform(85, 91)  # Scaled up 100x for better visibility
+            
+            # AI Source Fidelity: 80-90% range with slight model variations, scaled for visibility
+            if 'claude' in model_name.lower():
+                source_fidelity = random.uniform(83, 89)  # Scaled up 100x for better visibility
+            elif 'nova' in model_name.lower():
+                source_fidelity = random.uniform(81, 87)  # Scaled up 100x for better visibility
+            elif 'gpt' in model_name.lower():
+                source_fidelity = random.uniform(82, 88)  # Scaled up 100x for better visibility
+            else:
+                source_fidelity = random.uniform(80, 86)  # Scaled up 100x for better visibility
+            
+            # AI Cost: $0.10-$0.50 range with slight model variations, scaled for visibility
+            if 'claude' in model_name.lower():
+                cost = random.uniform(0.20, 0.40)  # Scaled up 100x for better visibility
+            elif 'nova' in model_name.lower():
+                cost = random.uniform(0.10, 0.30)  # Scaled up 100x for better visibility
+            elif 'gpt' in model_name.lower():
+                cost = random.uniform(0.15, 0.35)  # Scaled up 100x for better visibility
+            else:
+                cost = random.uniform(0.10, 0.20)  # Scaled up 100x for better visibility
+            
+            # Track the metrics
+            client.track(AI_ACCURACY_KEY, user_context, None, accuracy)
+            client.track(AI_SOURCE_FIDELITY_KEY, user_context, None, source_fidelity)
+            client.track(AI_COST_KEY, user_context, None, cost)
+            
+            # AI Chatbot Negative Feedback: 5-15% range with slight model variations
+            if random.random() < 0.10:  # 10% chance of negative feedback
+                client.track(AI_CHATBOT_NEGATIVE_FEEDBACK_KEY, user_context)
+            
+            if (i + 1) % 100 == 0:
+                logging.info(f"Processed {i + 1} users for hallucination detection experiment results")
+                client.flush()  # Flush events every 100 users
+        except Exception as e:
+            logging.error(f"Error processing user {i}: {str(e)}")
+            continue
+    logging.info("Hallucination detection experiment results generation for ai-config--togglebot completed")
+
+def brand_voice_model_experiment_results_generator(client):
+    LD_FEATURE_FLAG_KEY = "ai-config--togglebot-brand-voice"
+    AI_ACCURACY_KEY = "ai-accuracy"
+    AI_SOURCE_FIDELITY_KEY = "ai-source-fidelity"
+    AI_RELEVANCE_KEY = "ai-relevance"
+    AI_COST_KEY = "ai-cost"
+    AI_CHATBOT_NEGATIVE_FEEDBACK_KEY = "ai-chatbot-negative-feedback"
+    NUM_USERS = 7500
+
+    MODEL_PROFILES = {
+        "sonnet": {
+            "accuracy": (91, 96),
+            "source_fidelity": (86, 92),
+            "relevance": (90, 96),
+            "cost": (0.35, 0.55),
+            "negative_feedback_rate": 0.05,
+        },
+        "nova": {
+            "accuracy": (87, 93),
+            "source_fidelity": (83, 89),
+            "relevance": (86, 92),
+            "cost": (0.10, 0.25),
+            "negative_feedback_rate": 0.08,
+        },
+        "haiku": {
+            "accuracy": (85, 91),
+            "source_fidelity": (81, 87),
+            "relevance": (84, 90),
+            "cost": (0.15, 0.30),
+            "negative_feedback_rate": 0.09,
+        },
+        "gpt": {
+            "accuracy": (84, 90),
+            "source_fidelity": (80, 86),
+            "relevance": (83, 89),
+            "cost": (0.08, 0.18),
+            "negative_feedback_rate": 0.11,
+        },
+    }
+
+    DEFAULT_PROFILE = MODEL_PROFILES["nova"]
+
+    logging.info("Starting brand voice model experiment results generation...")
+
+    for i in range(NUM_USERS):
+        try:
+            user_context = generate_user_context()
+            variation = client.variation(LD_FEATURE_FLAG_KEY, user_context, None)
+
+            model_name = ""
+            if variation and hasattr(variation, "model") and variation.model:
+                model_name = variation.model.get("name", "").lower()
+
+            profile = DEFAULT_PROFILE
+            for key, prof in MODEL_PROFILES.items():
+                if key in model_name:
+                    profile = prof
+                    break
+
+            accuracy = random.uniform(*profile["accuracy"])
+            source_fidelity = random.uniform(*profile["source_fidelity"])
+            relevance = random.uniform(*profile["relevance"])
+            cost = random.uniform(*profile["cost"])
+
+            client.track(AI_ACCURACY_KEY, user_context, None, accuracy)
+            client.track(AI_SOURCE_FIDELITY_KEY, user_context, None, source_fidelity)
+            client.track(AI_RELEVANCE_KEY, user_context, None, relevance)
+            client.track(AI_COST_KEY, user_context, None, cost)
+
+            if random.random() < profile["negative_feedback_rate"]:
+                client.track(AI_CHATBOT_NEGATIVE_FEEDBACK_KEY, user_context)
+
+            if (i + 1) % 100 == 0:
+                logging.info(f"Processed {i + 1} users for brand voice model experiment")
+                client.flush()
+        except Exception as e:
+            logging.error(f"Error processing user {i}: {str(e)}")
+            continue
+    logging.info("Brand voice model experiment results generation completed")
+
+def togglebank_signup_funnel_experiment_results_generator(client):
+    LD_FEATURE_FLAG_KEY = "releaseNewSignupPromo"
+    SIGNUP_STARTED_KEY = "signup-started"
+    INITIAL_SIGNUP_COMPLETED_KEY = "initial-signup-completed"
+    PERSONAL_DETAILS_COMPLETED_KEY = "signup-personal-details-completed"
+    SERVICES_COMPLETED_KEY = "signup-services-completed"
+    SIGNUP_FLOW_COMPLETED_KEY = "signup-flow-completed"
+    NUM_USERS = 3000
+
+    logging.info("Starting funnel experiment results generation for releaseNewSignupPromo...")
+
+    for i in range(NUM_USERS):
+        try:
+            user_context = generate_user_context()
+            variation = client.variation(LD_FEATURE_FLAG_KEY, user_context, "control")
+            
+            client.track(SIGNUP_STARTED_KEY, user_context)
+            
+            if variation == "credit-card-offer":
+                step2_rate = 0.70
+                step3_rate = 0.65
+                step4_rate = 0.55
+                step5_rate = 0.45
+            elif variation == "mortgage-offer":
+                step2_rate = 0.75
+                step3_rate = 0.70
+                step4_rate = 0.62
+                step5_rate = 0.52
+            elif variation == "cashback-offer":
+                step2_rate = 0.65
+                step3_rate = 0.58
+                step4_rate = 0.48
+                step5_rate = 0.38
+            else:
+                step2_rate = 0.68
+                step3_rate = 0.60
+                step4_rate = 0.50
+                step5_rate = 0.40
+            
+            if random.random() < step2_rate:
+                client.track(INITIAL_SIGNUP_COMPLETED_KEY, user_context)
+                
+                if random.random() < step3_rate:
+                    client.track(PERSONAL_DETAILS_COMPLETED_KEY, user_context)
+                    
+                    if random.random() < step4_rate:
+                        client.track(SERVICES_COMPLETED_KEY, user_context)
+                        
+                        if random.random() < step5_rate:
+                            client.track(SIGNUP_FLOW_COMPLETED_KEY, user_context)
+                            logging.info(f"User {user_context.key} completed full signup funnel with {variation} variation")
+            
+            if (i + 1) % 100 == 0:
+                logging.info(f"Processed {i + 1} users for ToggleBank signup funnel experiment results")
+                client.flush()
+        except Exception as e:
+            logging.error(f"Error processing user {i}: {str(e)}")
+            continue
+    logging.info("Funnel experiment results generation for releaseNewSignupPromo completed")
+
+def ecommerce_collection_banner_experiment_results_generator(client):
+    LD_FEATURE_FLAG_KEY = "storeAttentionCallout"
+    STORE_ACCESSED_KEY = "store-accessed"
+    ITEM_ADDED_KEY = "item-added"
+    CART_ACCESSED_KEY = "cart-accessed"
+    CUSTOMER_CHECKOUT_KEY = "customer-checkout"
+    IN_CART_TOTAL_PRICE_KEY = "in-cart-total-price"
+    NUM_USERS = 3000
+
+    logging.info("Starting funnel experiment results generation for storeAttentionCallout...")
+
+    for i in range(NUM_USERS):
+        try:
+            user_context = generate_user_context()
+            variation = client.variation(LD_FEATURE_FLAG_KEY, user_context, "New Items")
+            
+            # Different conversion rates based on banner text
+            if variation == "Final Hours!":
+                store_access_rate = 0.85
+                item_add_rate = 0.70
+                cart_access_rate = 0.65
+                checkout_rate = 0.55
+            elif variation == "Sale":
+                store_access_rate = 0.80
+                item_add_rate = 0.65
+                cart_access_rate = 0.60
+                checkout_rate = 0.50
+            else:  # "New Items" (control)
+                store_access_rate = 0.70
+                item_add_rate = 0.55
+                cart_access_rate = 0.50
+                checkout_rate = 0.40
+            
+            if random.random() < store_access_rate:
+                client.track(STORE_ACCESSED_KEY, user_context)
+                
+                if random.random() < item_add_rate:
+                    client.track(ITEM_ADDED_KEY, user_context)
+                    
+                    if random.random() < cart_access_rate:
+                        client.track(CART_ACCESSED_KEY, user_context)
+                        
+                        if random.random() < checkout_rate:
+                            client.track(CUSTOMER_CHECKOUT_KEY, user_context)
+                            total_price = random.randint(50, 500)
+                            client.track(IN_CART_TOTAL_PRICE_KEY, user_context, None, total_price)
+                            logging.info(f"User {user_context.key} completed checkout with {variation} variation")
+            
+            if (i + 1) % 100 == 0:
+                logging.info(f"Processed {i + 1} users for collection banner experiment results")
+                client.flush()
+        except Exception as e:
+            logging.error(f"Error processing user {i}: {str(e)}")
+            continue
+    logging.info("Funnel experiment results generation for storeAttentionCallout completed")
+
+def ecommerce_shorten_collection_experiment_results_generator(client):
+    LD_FEATURE_FLAG_KEY = "release-new-shorten-collections-page"
+    ITEM_ADDED_KEY = "item-added"
+    CART_ACCESSED_KEY = "cart-accessed"
+    CUSTOMER_CHECKOUT_KEY = "customer-checkout"
+    IN_CART_TOTAL_PRICE_KEY = "in-cart-total-price"
+    NUM_USERS = 3000
+
+    logging.info("Starting funnel experiment results generation for release-new-shorten-collections-page...")
+
+    for i in range(NUM_USERS):
+        try:
+            user_context = generate_user_context()
+            variation = client.variation(LD_FEATURE_FLAG_KEY, user_context, "old-long-collections-page")
+            
+            # Better conversion for shortened page due to reduced decision fatigue
+            if variation == "new-shorten-collections-page":
+                item_add_rate = 0.75
+                cart_access_rate = 0.85
+                checkout_rate = 0.70
+            else:  # "old-long-collections-page"
+                item_add_rate = 0.60
+                cart_access_rate = 0.75
+                checkout_rate = 0.55
+            
+            if random.random() < item_add_rate:
+                client.track(ITEM_ADDED_KEY, user_context)
+                
+                if random.random() < cart_access_rate:
+                    client.track(CART_ACCESSED_KEY, user_context)
+                    
+                    if random.random() < checkout_rate:
+                        client.track(CUSTOMER_CHECKOUT_KEY, user_context)
+                        total_price = random.randint(80, 600)
+                        client.track(IN_CART_TOTAL_PRICE_KEY, user_context, None, total_price)
+                        logging.info(f"User {user_context.key} completed checkout with {variation} variation")
+            
+            if (i + 1) % 100 == 0:
+                logging.info(f"Processed {i + 1} users for shorten collection page experiment results")
+                client.flush()
+        except Exception as e:
+            logging.error(f"Error processing user {i}: {str(e)}")
+            continue
+    logging.info("Funnel experiment results generation for release-new-shorten-collections-page completed")
+
+def ecommerce_new_search_engine_experiment_results_generator(client):
+    LD_FEATURE_FLAG_KEY = "release-new-search-engine"
+    SEARCH_ENGINE_ADD_TO_CART_KEY = "search-engine-add-to-cart"
+    IN_CART_TOTAL_PRICE_KEY = "in-cart-total-price"
+    NUM_USERS = 3000
+
+    logging.info("Starting experiment results generation for release-new-search-engine...")
+
+    for i in range(NUM_USERS):
+        try:
+            user_context = generate_user_context()
+            variation = client.variation(LD_FEATURE_FLAG_KEY, user_context, False)
+            
+            # New search engine has better add-to-cart conversion
+            if variation is True:
+                add_to_cart_rate = 0.65
+                avg_price_low = 100
+                avg_price_high = 800
+            else:
+                add_to_cart_rate = 0.45
+                avg_price_low = 80
+                avg_price_high = 600
+            
+            if random.random() < add_to_cart_rate:
+                client.track(SEARCH_ENGINE_ADD_TO_CART_KEY, user_context)
+                total_price = random.randint(avg_price_low, avg_price_high)
+                client.track(IN_CART_TOTAL_PRICE_KEY, user_context, None, total_price)
+                logging.info(f"User {user_context.key} added items via search with {variation} variation")
+            
+            if (i + 1) % 100 == 0:
+                logging.info(f"Processed {i + 1} users for new search engine experiment results")
+                client.flush()
+        except Exception as e:
+            logging.error(f"Error processing user {i}: {str(e)}")
+            continue
+    logging.info("Experiment results generation for release-new-search-engine completed")
+
+def togglebank_special_offers_experiment_results_generator(client):
+    LD_FEATURE_FLAG_KEY = "showDifferentSpecialOfferString"
+    SIGNUP_STARTED_KEY = "signup-started"
+    NUM_USERS = 3000
+
+    logging.info("Starting experiment results generation for showDifferentSpecialOfferString...")
+
+    for i in range(NUM_USERS):
+        try:
+            user_context = generate_user_context()
+            variation = client.variation(LD_FEATURE_FLAG_KEY, user_context, "offerA")
+            
+            # Different offers have different conversion rates
+            if variation == "offerA":  # Credit card offer
+                conversion_rate = 0.55
+            elif variation == "offerB":  # Car loan offer
+                conversion_rate = 0.45
+            elif variation == "offerC":  # Platinum rewards offer
+                conversion_rate = 0.65
+            else:
+                conversion_rate = 0.50
+            
+            if random.random() < conversion_rate:
+                client.track(SIGNUP_STARTED_KEY, user_context)
+                logging.info(f"User {user_context.key} started signup with {variation} variation")
+            
+            if (i + 1) % 100 == 0:
+                logging.info(f"Processed {i + 1} users for special offers experiment results")
+                client.flush()
+        except Exception as e:
+            logging.error(f"Error processing user {i}: {str(e)}")
+            continue
+    logging.info("Experiment results generation for showDifferentSpecialOfferString completed")
+
+def togglebank_widget_position_experiment_results_generator(client):
+    LD_FEATURE_FLAG_KEY = "swapWidgetPositions"
+    SIGNUP_STARTED_KEY = "signup-started"
+    NUM_USERS = 3000
+
+    logging.info("Starting experiment results generation for swapWidgetPositions...")
+
+    for i in range(NUM_USERS):
+        try:
+            user_context = generate_user_context()
+            variation = client.variation(LD_FEATURE_FLAG_KEY, user_context, False)
+            
+            # Test if swapping widget positions improves conversion
+            if variation is True:  # Retirement left, Mortgage right
+                conversion_rate = 0.58
+            else:  # Mortgage left, Retirement right (original)
+                conversion_rate = 0.52
+            
+            if random.random() < conversion_rate:
+                client.track(SIGNUP_STARTED_KEY, user_context)
+                logging.info(f"User {user_context.key} started signup with widgets swapped={variation}")
+            
+            if (i + 1) % 100 == 0:
+                logging.info(f"Processed {i + 1} users for widget position experiment results")
+                client.flush()
+        except Exception as e:
+            logging.error(f"Error processing user {i}: {str(e)}")
+            continue
+    logging.info("Experiment results generation for swapWidgetPositions completed")
+
+def government_ai_config_experiment_results_generator(client):
+    LD_FLAG_KEY = "ai-config--publicbot"
+    POSITIVE_METRIC_KEY = "ai-chatbot-positive-feedback"
+    NEGATIVE_METRIC_KEY = "ai-chatbot-negative-feedback"
+    NUM_USERS = 2500
+
+    logging.info("Starting AI Configs experiment results generation for ai-config--publicbot...")
+
+    for i in range(NUM_USERS):
+        try:
+            user_context = generate_user_context()
+            _ = client.variation(LD_FLAG_KEY, user_context, None)
+            # Randomly track positive or negative feedback (roughly 60/40 split for government)
+            if random.random() < 0.60:
+                client.track(POSITIVE_METRIC_KEY, user_context)
+            else:
+                client.track(NEGATIVE_METRIC_KEY, user_context)
+            if (i + 1) % 100 == 0:
+                logging.info(f"Processed {i + 1} users for Government AI Configs experiment results")
+                client.flush()
+        except Exception as e:
+            logging.error(f"Error processing user {i}: {str(e)}")
+            continue
+    logging.info("AI Configs experiment results generation for ai-config--publicbot completed")
+
+# Old A3 - Commented out (replaced by payment_engine_healthy_scenario_generator)
+# def togglebank_db_guarded_release_generator(client, stop_event):
+#     if not client.is_initialized():
+#         logging.error("LaunchDarkly client is not initialized for ToggleBank DB")
+#         return
+#     logging.info("Starting guarded release rollback generator for ToggleBank DB flag...")
+#     while True:
+#         flag_details = get_flag_details("togglebankDBGuardedRelease")
+#         if not flag_details or not is_measured_rollout(flag_details):
+#             logging.info("Measured rollout is over or flag details unavailable. Exiting ToggleBank DB generator.")
+#             stop_event.set()
+#             break
+#         try:
+#             user_context = generate_user_context()
+#             flag_value = client.variation("togglebankDBGuardedRelease", user_context, False)
+#             if flag_value:
+#                 # True: higher error rate, higher latency
+#                 if random.random() < 0.7:
+#                     client.track("recent-trades-db-errors", user_context)
+#                 latency = random.randint(300, 700)
+#                 client.track("recent-trades-db-latency", user_context, None, latency)
+#             else:
+#                 # False: lower error rate, lower latency
+#                 if random.random() < 0.08:
+#                     client.track("recent-trades-db-errors", user_context)
+#                 latency = random.randint(50, 150)
+#                 client.track("recent-trades-db-latency", user_context, None, latency)
+#             time.sleep(0.05)
+#         except Exception as e:
+#             logging.error(f"Error during ToggleBank DB guarded release simulation: {str(e)}")
+#             continue
+#     logging.info("ToggleBank DB guarded release rollback generator finished.")
+
+def investment_db_guarded_release_generator(client, stop_event):
+    if not client.is_initialized():
+        logging.error("LaunchDarkly client is not initialized for Investment DB")
+        return
+    logging.info("Starting guarded release rollback generator for Investment DB flag...")
+    while True:
+        flag_details = get_flag_details("investment-recent-trade-db")
+        if not flag_details or not is_measured_rollout(flag_details):
+            logging.info("Measured rollout is over or flag details unavailable. Exiting Investment DB generator.")
+            stop_event.set()
+            break
+        try:
+            user_context = generate_user_context()
+            flag_value = client.variation("investment-recent-trade-db", user_context, False)
+            if flag_value:
+                # True: higher error rate, higher latency
+                if random.random() < 0.65:
+                    client.track("recent-trades-db-errors", user_context)
+                latency = random.randint(250, 600)
+                client.track("recent-trades-db-latency", user_context, None, latency)
+            else:
+                # False: lower error rate, lower latency
+                if random.random() < 0.06:
+                    client.track("recent-trades-db-errors", user_context)
+                latency = random.randint(40, 120)
+                client.track("recent-trades-db-latency", user_context, None, latency)
+            time.sleep(0.05)
+        except Exception as e:
+            logging.error(f"Error during Investment DB guarded release simulation: {str(e)}")
+            continue
+    logging.info("Investment DB guarded release rollback generator finished.")
+
+def investment_api_guarded_release_generator(client, stop_event):
+    if not client.is_initialized():
+        logging.error("LaunchDarkly client is not initialized for Investment API")
+        return
+    logging.info("Starting guarded release rollback generator for Investment API flag...")
+    while True:
+        flag_details = get_flag_details("release-new-investment-stock-api")
+        if not flag_details or not is_measured_rollout(flag_details):
+            logging.info("Measured rollout is over or flag details unavailable. Exiting Investment API generator.")
+            stop_event.set()
+            break
+        try:
+            user_context = generate_user_context()
+            flag_value = client.variation("release-new-investment-stock-api", user_context, False)
+            if flag_value:
+                # True: higher error rate, higher latency
+                if random.random() < 0.72:
+                    client.track("stocks-api-error-rates", user_context)
+                latency = random.randint(350, 750)
+                client.track("stocks-api-latency", user_context, None, latency)
+            else:
+                # False: lower error rate, lower latency
+                if random.random() < 0.09:
+                    client.track("stocks-api-error-rates", user_context)
+                latency = random.randint(70, 170)
+                client.track("stocks-api-latency", user_context, None, latency)
+            time.sleep(0.05)
+        except Exception as e:
+            logging.error(f"Error during Investment API guarded release simulation: {str(e)}")
+            continue
+    logging.info("Investment API guarded release rollback generator finished.")
+
+def risk_mgmt_db_guarded_release_generator(client, stop_event):
+    if not client.is_initialized():
+        logging.error("LaunchDarkly client is not initialized for Risk Management DB")
+        return
+    logging.info("Starting guarded release rollback generator for Risk Management DB flag...")
+    while True:
+        flag_details = get_flag_details("riskmgmtbureauDBGuardedRelease")
+        if not flag_details or not is_measured_rollout(flag_details):
+            logging.info("Measured rollout is over or flag details unavailable. Exiting Risk Management DB generator.")
+            stop_event.set()
+            break
+        try:
+            user_context = generate_user_context()
+            flag_value = client.variation("riskmgmtbureauDBGuardedRelease", user_context, False)
+            if flag_value:
+                # True: higher error rate, higher latency
+                if random.random() < 0.68:
+                    client.track("rm-db-errors", user_context)
+                latency = random.randint(280, 650)
+                client.track("rm-db-latency", user_context, None, latency)
+            else:
+                # False: lower error rate, lower latency
+                if random.random() < 0.07:
+                    client.track("rm-db-errors", user_context)
+                latency = random.randint(60, 140)
+                client.track("rm-db-latency", user_context, None, latency)
+            time.sleep(0.05)
+        except Exception as e:
+            logging.error(f"Error during Risk Management DB guarded release simulation: {str(e)}")
+            continue
+    logging.info("Risk Management DB guarded release rollback generator finished.")
+
+def payment_engine_healthy_scenario_generator(client, stop_event):
+    """Static data generator for healthy payment engine rollout scenario"""
+    if not client.is_initialized():
+        logging.error("LaunchDarkly client is not initialized for Payment Engine Healthy scenario")
+        return
+    
+    logging.info("Starting Payment Engine Healthy scenario generator...")
+    
+    # wait for rollout to be fully initialized with retry logic
+    logging.info("Waiting for flag rollout to be ready...")
+    max_retries = 6
+    retry_count = 0
+    rollout_ready = False
+    
+    while retry_count < max_retries and not rollout_ready:
+        time.sleep(5)
+        flag_details = get_flag_details("paymentEngineHealthyRollout")
+        if flag_details and is_measured_rollout(flag_details):
+            rollout_ready = True
+            logging.info("✅ Payment Engine Healthy rollout is ready!")
+        else:
+            retry_count += 1
+            logging.info(f"Rollout not ready yet, retrying... ({retry_count}/{max_retries})")
+    
+    if not rollout_ready:
+        logging.error("Payment Engine Healthy rollout failed to initialize after 30 seconds. Exiting.")
+        return
+    
+    status_check_counter = 0
+
+    while True:
+        if status_check_counter >= 100:
+            flag_details = get_flag_details("paymentEngineHealthyRollout")
+            if not flag_details or not is_measured_rollout(flag_details):
+                logging.info("Measured rollout is over or flag details unavailable. Exiting Payment Engine Healthy generator.")
+                stop_event.set()
+                break
+            status_check_counter = 0
+        try:
+            user_context = generate_user_context()
+            flag_value = client.variation("paymentEngineHealthyRollout", user_context, False)
+            if flag_value:
+                if random.random() < 0.05:
+                    client.track("payment-error-rate", user_context)
+                if random.random() < 0.92:
+                    client.track("payment-success-rate", user_context)
+                latency = random.randint(50, 150)
+                client.track("payment-latency", user_context, None, latency)
+                client.track("payment-transactions-processed", user_context, None, 1)
+            else:
+                if random.random() < 0.15:
+                    client.track("payment-error-rate", user_context)
+                if random.random() < 0.82:
+                    client.track("payment-success-rate", user_context)
+                latency = random.randint(200, 400)
+                client.track("payment-latency", user_context, None, latency)
+                client.track("payment-transactions-processed", user_context, None, 1)
+            status_check_counter += 1
+            time.sleep(0.03)
+        except Exception as e:
+            logging.error(f"Error generating payment healthy metrics: {str(e)}")
+            continue
+    logging.info("Payment Engine Healthy scenario generator finished.")
+
+def payment_engine_failed_scenario_generator(client, stop_event):
+    """Generates realistic failed rollout data with smooth organic chart curves.
+
+    Root cause of previous flat/step charts: error-rate and success-rate were
+    CONVERSION metrics (binary yes/no per user). Now they're NUMERIC metrics
+    tracking 100/0 per event so the chart shows smooth MEAN values per bucket.
+
+    With numeric metrics, the chart mean naturally produces smooth organic lines
+    because each 30s bucket averages many 100/0 values. At 10% allocation with
+    3 events/sec, each bucket gets ~9 test events — enough for smooth means but
+    few enough that LD's detector needs many minutes to reach significance.
+
+    Visual story:
+    - Latency: control ~110ms flat, test starts ~120ms and GRADUALLY climbs
+    - Error rate: control ~4pp flat, test starts ~18pp and GRADUALLY climbs  
+    - Success rate: control ~93pp flat, test starts ~76pp and GRADUALLY falls
+    - After 8+ min: catastrophic spike triggers rollback
+    """
+    if not client.is_initialized():
+        logging.error("LaunchDarkly client is not initialized for Payment Processing v2.0 Failed scenario")
+        return
+
+    logging.info("Starting Payment Processing v2.0 Failed scenario generator...")
+
+    logging.info("Waiting for flag rollout to be ready...")
+    max_retries = 6
+    retry_count = 0
+    rollout_ready = False
+
+    while retry_count < max_retries and not rollout_ready:
+        time.sleep(5)
+        flag_details = get_flag_details("paymentProcessingV2FailedRollout")
+        if flag_details and is_measured_rollout(flag_details):
+            rollout_ready = True
+            logging.info("✅ Payment Processing v2.0 Failed rollout is ready!")
+        else:
+            retry_count += 1
+            logging.info(f"Rollout not ready yet, retrying... ({retry_count}/{max_retries})")
+
+    if not rollout_ready:
+        logging.error("Payment Processing v2.0 Failed rollout failed to initialize after 30 seconds. Exiting.")
+        return
+
+    status_check_counter = 0
+    iteration = 0
+    start_time = time.time()
+
+    SUSTAIN_END = 540.0
+    CATASTROPHE_END = 780.0
+
+    walk_test_lat = 0.0
+    walk_ctrl_lat = 0.0
+    walk_test_err = 0.0
+    walk_test_suc = 0.0
+
+    while True:
+        if status_check_counter >= 80:
+            flag_details = get_flag_details("paymentProcessingV2FailedRollout")
+            if not flag_details or not is_measured_rollout(flag_details):
+                logging.info("Measured rollout is over. Exiting Payment Processing v2.0 Failed generator.")
+                stop_event.set()
+                break
+            status_check_counter = 0
+        try:
+            user_context = generate_user_context()
+            flag_value = client.variation("paymentProcessingV2FailedRollout", user_context, False)
+
+            elapsed = time.time() - start_time
+
+            walk_test_lat += random.uniform(-3, 3)
+            walk_test_lat = max(-15, min(15, walk_test_lat))
+            walk_ctrl_lat += random.uniform(-3, 3)
+            walk_ctrl_lat = max(-12, min(12, walk_ctrl_lat))
+            walk_test_err += random.uniform(-0.8, 0.8)
+            walk_test_err = max(-3, min(3, walk_test_err))
+            walk_test_suc += random.uniform(-0.8, 0.8)
+            walk_test_suc = max(-3, min(3, walk_test_suc))
+
+            if flag_value:
+                t_osc_lat = (10 * math.sin(elapsed / 45)
+                             + 7 * math.sin(elapsed / 19)
+                             + 4 * math.sin(elapsed / 8))
+                t_osc_err = (2.0 * math.sin(elapsed / 40)
+                             + 1.5 * math.sin(elapsed / 17)
+                             + 1.0 * math.sin(elapsed / 7))
+                t_osc_suc = (2.0 * math.sin(elapsed / 36)
+                             + 1.5 * math.sin(elapsed / 15)
+                             + 1.0 * math.sin(elapsed / 6))
+
+                if elapsed < SUSTAIN_END:
+                    progress = elapsed / SUSTAIN_END
+
+                    error_mean = 11 + (5 * progress)
+                    error_pct = error_mean + t_osc_err + walk_test_err + random.uniform(-1.2, 1.2)
+                    error_pct = max(6, min(22, error_pct))
+
+                    success_mean = 84 - (5 * progress)
+                    success_pct = success_mean + t_osc_suc + walk_test_suc + random.uniform(-1.2, 1.2)
+                    success_pct = max(74, min(90, success_pct))
+
+                    latency_base = 148 + (25 * progress)
+                    latency_center = latency_base + t_osc_lat + walk_test_lat
+                    latency = int(random.gauss(latency_center, 26))
+                    latency = max(90, min(280, latency))
+
+                else:
+                    cat_progress = min((elapsed - SUSTAIN_END) / (CATASTROPHE_END - SUSTAIN_END), 1.0)
+                    curve = 1.0 - ((1.0 - cat_progress) ** 2.2)
+
+                    error_mean = 18 + (48 * curve)
+                    error_pct = error_mean + 2 * math.sin(elapsed / 20) + random.uniform(-1.5, 1.5)
+                    error_pct = max(16, min(80, error_pct))
+
+                    success_mean = 78 - (48 * curve)
+                    success_pct = success_mean + 1.5 * math.sin(elapsed / 22) + random.uniform(-1.5, 1.5)
+                    success_pct = max(18, min(82, success_pct))
+
+                    latency_base = 175 + (340 * curve)
+                    latency_center = latency_base + t_osc_lat * 0.5 + walk_test_lat
+                    latency = int(random.gauss(latency_center, 40 + 30 * curve))
+                    latency = max(120, min(750, latency))
+
+                error_val = 100 if random.random() * 100 < error_pct else 0
+                success_val = 100 if random.random() * 100 < success_pct else 0
+
+                client.track("payment-v2-error-rate", user_context, None, error_val)
+                client.track("payment-v2-success-rate", user_context, None, success_val)
+                client.track("payment-v2-latency", user_context, None, latency)
+                client.track("payment-transactions-processed", user_context, None, 1)
+
+                if error_val == 100:
+                    error_types = [
+                        "PaymentGatewayTimeout",
+                        "TransactionValidationError",
+                        "DatabaseConnectionError",
+                        "PaymentProcessorException",
+                        "InsufficientFundsError"
+                    ]
+                    error_messages = [
+                        "Payment gateway timed out after 30 seconds",
+                        "Transaction validation failed: invalid card number format",
+                        "Database connection pool exhausted",
+                        "Payment processor returned 500 Internal Server Error",
+                        "Insufficient funds for transaction amount"
+                    ]
+                    error_idx = random.randint(0, len(error_types) - 1)
+                    error_data = {
+                        "error.kind": error_types[error_idx],
+                        "error.message": error_messages[error_idx],
+                        "service.name": "payment-processing-v2",
+                        "component": "PaymentEngine",
+                        "transaction.id": f"txn-{iteration}",
+                        "user.id": user_context.key,
+                        "flag.key": "paymentProcessingV2FailedRollout",
+                        "severity": "high"
+                    }
+                    client.track("$ld:telemetry:error", user_context, error_data, 1)
+
+                rev_chance = max(0.10, 0.70 - (0.45 * (elapsed / CATASTROPHE_END)))
+                if random.random() < rev_chance:
+                    client.track("payment-revenue-protected", user_context, None, random.randint(50, 600))
+            else:
+                c_osc = (10 * math.sin(elapsed / 50)
+                         + 6 * math.sin(elapsed / 22)
+                         + 3 * math.sin(elapsed / 10))
+
+                ctrl_latency_center = 110 + c_osc + walk_ctrl_lat
+                ctrl_latency = int(random.gauss(ctrl_latency_center, 25))
+                ctrl_latency = max(55, min(200, ctrl_latency))
+
+                ctrl_error_pct = 4 + 1.5 * math.sin(elapsed / 28) + random.uniform(-1.5, 1.5)
+                ctrl_error_pct = max(1, min(9, ctrl_error_pct))
+                ctrl_error_val = 100 if random.random() * 100 < ctrl_error_pct else 0
+
+                ctrl_success_pct = 93 + 1.2 * math.sin(elapsed / 24) + random.uniform(-1.2, 1.2)
+                ctrl_success_pct = max(88, min(97, ctrl_success_pct))
+                ctrl_success_val = 100 if random.random() * 100 < ctrl_success_pct else 0
+
+                client.track("payment-v2-error-rate", user_context, None, ctrl_error_val)
+                client.track("payment-v2-success-rate", user_context, None, ctrl_success_val)
+                client.track("payment-v2-latency", user_context, None, ctrl_latency)
+                client.track("payment-transactions-processed", user_context, None, 1)
+                if random.random() < 0.85:
+                    client.track("payment-revenue-protected", user_context, None, random.randint(200, 900))
+
+            iteration += 1
+            status_check_counter += 1
+            time.sleep(0.12)
+        except Exception as e:
+            logging.error(f"Error generating payment v2 failed metrics: {str(e)}")
+            continue
+    logging.info("Payment Processing v2.0 Failed scenario generator finished.")
+
+def generate_results(project_key, api_key):
+    print(f"Generating flags for project {project_key} with API key {api_key} (stub)")
+    sdk_key = os.getenv("LD_SDK_KEY")
+    if sdk_key:
+        # ~8 generator threads all track events on this one client; the queue
+        # must absorb their combined burst rate between flushes or the SDK
+        # drops events ("Exceeded event queue capacity"), thinning demo data.
+        # But keep events_max_pending modest: the SDK posts the ENTIRE queue
+        # as one request, and if the events endpoint rejects it as too large
+        # (HTTP 413) the SDK permanently disables event delivery — which also
+        # leaves the guarded-rollout generators looping forever, since the
+        # release guardian never receives the metric events it needs to
+        # finish the rollout. Compression shrinks payloads ~10x; the small
+        # queue caps worst-case payload size on older SDKs without it.
+        config_kwargs = dict(
+            sdk_key=sdk_key,
+            events_max_pending=2000,
+            flush_interval=1,
+        )
+        try:
+            ldclient.set_config(Config(enable_event_compression=True, **config_kwargs))
+        except TypeError:
+            # SDK version without compression support
+            ldclient.set_config(Config(**config_kwargs))
+        client = ldclient.get()
+        
+        # Evaluate all flags by their tags
+        evaluate_all_flags(client)
+        
+        # AI Configs monitoring
+        ai_configs_monitoring_results_generator(client)
+        multi_agent_monitoring_results_generator(client)
+        financial_agent_monitoring_results_generator(client)
+        
+        # All experiment result generators
+        experiment_results_generator(client)  # cartSuggestedItems
+        ai_configs_experiment_results_generator(client)  # ai-config--togglebot
+        hero_image_experiment_results_generator(client)  # showDifferentHeroImageString
+        hero_redesign_experiment_results_generator(client)  # showHeroRedesign
+        hallucination_detection_experiment_results_generator(client)  # ai-config--togglebot
+        brand_voice_model_experiment_results_generator(client)  # ai-config--togglebot-brand-voice
+        togglebank_signup_funnel_experiment_results_generator(client)  # releaseNewSignupPromo
+        
+        # New experiment generators
+        ecommerce_collection_banner_experiment_results_generator(client)  # storeAttentionCallout
+        ecommerce_shorten_collection_experiment_results_generator(client)  # release-new-shorten-collections-page
+        ecommerce_new_search_engine_experiment_results_generator(client)  # release-new-search-engine
+        togglebank_special_offers_experiment_results_generator(client)  # showDifferentSpecialOfferString
+        togglebank_widget_position_experiment_results_generator(client)  # swapWidgetPositions
+        government_ai_config_experiment_results_generator(client)  # ai-config--publicbot
+        
+        # Guarded release generators (including static scenario-based ones)
+        stop_event = threading.Event()
+        risk_mgmt_stop_event = threading.Event()
+        financial_agent_stop_event = threading.Event()
+        # togglebank_db_stop_event = threading.Event()  # Old A3 - Commented out
+        investment_db_stop_event = threading.Event()
+        investment_api_stop_event = threading.Event()
+        risk_mgmt_db_stop_event = threading.Event()
+        payment_healthy_stop_event = threading.Event()
+        payment_failed_stop_event = threading.Event()
+        
+        # Create and start all guarded release threads
+        # a4_thread = threading.Thread(target=a4_guarded_release_generator, args=(client, stop_event))  # Old A4 - Commented out
+        risk_mgmt_thread = threading.Thread(target=risk_mgmt_guarded_release_generator, args=(client, risk_mgmt_stop_event))
+        financial_agent_thread = threading.Thread(target=financial_advisor_agent_guarded_release_generator, args=(client, financial_agent_stop_event))
+        # togglebank_db_thread = threading.Thread(target=togglebank_db_guarded_release_generator, args=(client, togglebank_db_stop_event))  # Old A3 - Commented out
+        investment_db_thread = threading.Thread(target=investment_db_guarded_release_generator, args=(client, investment_db_stop_event))
+        investment_api_thread = threading.Thread(target=investment_api_guarded_release_generator, args=(client, investment_api_stop_event))
+        risk_mgmt_db_thread = threading.Thread(target=risk_mgmt_db_guarded_release_generator, args=(client, risk_mgmt_db_stop_event))
+        payment_healthy_thread = threading.Thread(target=payment_engine_healthy_scenario_generator, args=(client, payment_healthy_stop_event))  # New A3
+        payment_failed_thread = threading.Thread(target=payment_engine_failed_scenario_generator, args=(client, payment_failed_stop_event))  # New A4
+        
+        # a4_thread.start()  # Old A4 - Commented out
+        risk_mgmt_thread.start()
+        financial_agent_thread.start()
+        # togglebank_db_thread.start()  # Old A3 - Commented out
+        investment_db_thread.start()
+        investment_api_thread.start()
+        risk_mgmt_db_thread.start()
+        payment_healthy_thread.start()
+        payment_failed_thread.start()
+
+        # Fire real /api/chat requests at the deployed app so OTel traces
+        # populate the Traces section on each sub-agent AI Config's Monitoring
+        # tab. Runs in parallel with guarded release generators to avoid adding
+        # to the total provisioning time.
+        chat_hitter_thread = threading.Thread(
+            target=multi_agent_chat_hitter,
+            args=(DEMO_NAMESPACE,),
+            daemon=True,
+        )
+        chat_hitter_thread.start()
+
+        logging.info("All guarded release generators are now running...")
+        logging.info("Generators will stop when rollouts complete or after 20 minutes (safety cap).")
+        logging.info("")
+        
+        MAX_GENERATOR_WAIT = 1200  # 20 minutes
+        # a4_thread.join()  # Old A4 - Commented out
+        risk_mgmt_thread.join(timeout=MAX_GENERATOR_WAIT)
+        financial_agent_thread.join(timeout=MAX_GENERATOR_WAIT)
+        # togglebank_db_thread.join()  # Old A3 - Commented out
+        investment_db_thread.join(timeout=MAX_GENERATOR_WAIT)
+        investment_api_thread.join(timeout=MAX_GENERATOR_WAIT)
+        risk_mgmt_db_thread.join(timeout=MAX_GENERATOR_WAIT)
+        payment_healthy_thread.join(timeout=MAX_GENERATOR_WAIT)
+        payment_failed_thread.join(timeout=MAX_GENERATOR_WAIT)
+        chat_hitter_thread.join(timeout=300)
+        
+        still_running = [t for t in [risk_mgmt_thread, financial_agent_thread, investment_db_thread,
+                                      investment_api_thread, risk_mgmt_db_thread, payment_healthy_thread,
+                                      payment_failed_thread] if t.is_alive()]
+        if still_running:
+            logging.warning(f"{len(still_running)} generator(s) still running after timeout — proceeding anyway.")
+        else:
+            logging.info("All guarded release generators have completed.")
+        
+        client.flush()
+        client.close()
+    else:
+        print("LD_SDK_KEY not set in environment. Skipping flag evaluation, guarded release simulation, AI Configs monitoring, and experiment results generation.") 
