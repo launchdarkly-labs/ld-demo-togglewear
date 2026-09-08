@@ -13,7 +13,7 @@ env:
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   AWS_REGION: us-east-1
   KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
-  ECR_REPOSITORY: ld-core-demo
+  ECR_REPOSITORY: ld-demo-togglewear
   KUBECTL_VERSION: "v1.23.0"
   DEMO_NAMESPACE: ${{ github.event.inputs.name }}
   LD_PROJECT_KEY: ${{ github.event.inputs.name }}-ld-demo
@@ -194,7 +194,7 @@ jobs:
       - name: Build, tag, and push image to Amazon ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ld-core-demo
+          ECR_REPOSITORY: ld-demo-togglewear
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ env.DEMO_NAMESPACE }}-${{ github.run_id }} .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ env.DEMO_NAMESPACE }}-${{ github.run_id }}
@@ -205,7 +205,7 @@ jobs:
           NAMESPACE: ${{ env.DEMO_NAMESPACE }}
           IS_EXTERNAL: ${{ github.event.inputs.is_external == 'true' && 'true' || (github.event.inputs.is_external == '' && 'false' || 'false') }}
           URL: ${{ env.DEMO_NAMESPACE }}.launchdarklydemos.com
-          IMAGE: ${{ steps.login-ecr.outputs.registry }}/ld-core-demo:${{ env.DEMO_NAMESPACE }}-${{ github.run_id }}
+          IMAGE: ${{ steps.login-ecr.outputs.registry }}/ld-demo-togglewear:${{ env.DEMO_NAMESPACE }}-${{ github.run_id }}
 
       - name: Check Namespace in Kubernetes
         uses: kodermax/kubectl-aws-eks@master
@@ -222,9 +222,9 @@ jobs:
         run: |
           echo "Creating Pod Identity Association for namespace: ${{ env.DEMO_NAMESPACE }}"
           aws eks create-pod-identity-association \
-            --cluster-name ld-core-demo-eks \
+            --cluster-name ld-demo-togglewear-eks \
             --namespace ${{ env.DEMO_NAMESPACE }} \
-            --service-account ld-core-demo-sa \
+            --service-account ld-demo-togglewear-sa \
             --role-arn ${{ env.EKS_POD_IDENTITY_ROLE_ARN }} \
             --region us-east-1 || echo "Pod Identity Association may already exist, continuing..."
 

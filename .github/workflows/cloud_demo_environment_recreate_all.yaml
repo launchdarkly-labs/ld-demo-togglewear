@@ -38,7 +38,7 @@ jobs:
         id: build_list
         run: |
           # Keep only namespaces that contain the demo deployment
-          awk '$2 == "ld-core-demo-deployment" {print $1}' deployments.txt > namespaces.txt
+          awk '$2 == "ld-demo-togglewear-deployment" {print $1}' deployments.txt > namespaces.txt
           echo "Discovered namespaces:"
           cat namespaces.txt
 
