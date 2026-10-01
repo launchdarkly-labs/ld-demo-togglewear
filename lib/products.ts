@@ -166,7 +166,6 @@ export const BEST_SELLERS: Product[] = [
     gallery: [
       "/images/products/stickers-laptop.png",
       "/images/products/stickers-sheet.png",
-      "/images/products/sticker-logo-blue.png",
     ],
     sizes: ONE_SIZE,
     defaultSize: "One size",
@@ -242,6 +241,25 @@ export const BEST_SELLERS: Product[] = [
       "Vacuum insulated, cold 24 hours",
       "Leakproof threaded lid",
       "Integrated carry loop",
+    ],
+  },
+  {
+    slug: "pool-float",
+    name: "Pool Float",
+    priceUsd: 42,
+    description: "Oversized inflatable, ships flat",
+    image: "/images/products/pool-float.png",
+    badge: "Limited Run",
+    gallery: ["/images/products/pool-float.png"],
+    sizes: ONE_SIZE,
+    defaultSize: "One size",
+    detail:
+      "Ship it straight to the deep end. An oversized inflatable in the shape of the mark, rated for one adult and welded to survive a whole summer of poolside standups.\n\nInflates in about two minutes and packs back down flat.",
+    features: [
+      "Oversized inflatable, 5 feet across",
+      "Heavy-gauge welded seams",
+      "Rapid-inflation valve",
+      "Packs flat into a reusable bag",
     ],
   },
 ];
