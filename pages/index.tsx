@@ -5,6 +5,7 @@ import Hero from "@/components/sections/Hero";
 import BestSellers from "@/components/sections/BestSellers";
 import QuoteBreak from "@/components/sections/QuoteBreak";
 import DropPromo from "@/components/sections/DropPromo";
+import SwagAssistant from "@/components/ui/SwagAssistant";
 import { type PricingVariant } from "@/lib/products";
 import { type AnnouncementPersona } from "@/components/layout/AnnouncementBar";
 
@@ -36,6 +37,7 @@ export default function Home() {
       <QuoteBreak />
       <DropPromo />
       <Footer />
+      <SwagAssistant persona={persona} />
 
       {/* Temporary stand-in for flag evaluation so the personas are reviewable
           before the LaunchDarkly project is wired up. */}
