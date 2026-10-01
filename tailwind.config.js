@@ -69,7 +69,11 @@ module.exports = {
         h1: ["64px", { lineHeight: "1", letterSpacing: "-3.2px" }],
         h2: ["56px", { lineHeight: "1.05", letterSpacing: "-2.8px" }],
         h3: ["40px", { lineHeight: "1.05", letterSpacing: "-2px" }],
+        // Web H6 — the product detail price.
+        h6: ["20px", { lineHeight: "1.15", letterSpacing: "-0.4px" }],
         main: ["16px", { lineHeight: "1.55", letterSpacing: "0" }],
+        // Web Text Large, Medium — the Add to Cart / Wishlist buttons.
+        "large-medium": ["18px", { lineHeight: "1.35", letterSpacing: "0" }],
         "main-medium": ["16px", { lineHeight: "1.55", letterSpacing: "-0.48px" }],
         small: ["14px", { lineHeight: "1.4", letterSpacing: "0" }],
         xsmall: ["12px", { lineHeight: "1.5", letterSpacing: "0" }],
