@@ -1,7 +1,9 @@
 import { useState } from "react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import Hero, { type HeroVariant } from "@/components/sections/Hero";
+import Hero from "@/components/sections/Hero";
+import BestSellers from "@/components/sections/BestSellers";
+import { type PricingVariant } from "@/lib/products";
 import { type AnnouncementPersona } from "@/components/layout/AnnouncementBar";
 
 const PERSONAS: { id: AnnouncementPersona; label: string }[] = [
@@ -11,10 +13,10 @@ const PERSONAS: { id: AnnouncementPersona; label: string }[] = [
   { id: "loyaltyGold", label: "Loyalty Gold Member" },
 ];
 
-// Jen designed hero art for two of the four personas, so Cart Abandoner and
-// New Customer currently share the default hero while keeping their own
-// announcement bar.
-const HERO_BY_PERSONA: Record<AnnouncementPersona, HeroVariant> = {
+// Jen designed two variants of the hero and the item block: default and
+// Loyal Gold Member. Cart Abandoner and New Customer have no art of their own
+// yet, so they fall back to default while keeping their own announcement bar.
+const VARIANT_BY_PERSONA: Record<AnnouncementPersona, PricingVariant> = {
   default: "default",
   cartAbandon: "default",
   newCustomer: "default",
@@ -27,7 +29,8 @@ export default function Home() {
   return (
     <>
       <Header persona={persona} />
-      <Hero variant={HERO_BY_PERSONA[persona]} />
+      <Hero variant={VARIANT_BY_PERSONA[persona]} />
+      <BestSellers variant={VARIANT_BY_PERSONA[persona]} />
       <Footer />
 
       {/* Temporary stand-in for flag evaluation so the personas are reviewable
