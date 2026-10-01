@@ -25,9 +25,7 @@ export default function ProductCard({
         />
 
         {isNew && (
-          // Figma specifies Geist SemiBold here, the only use of a third font
-          // in the file. Using the Sohne stack until that's confirmed.
-          <span className="absolute left-4 top-4 rounded-[2px] border border-grays-ld-black bg-base-lime px-2.5 py-1.5 font-sohne text-[10px] font-semibold uppercase tracking-[1px] text-grays-ld-black">
+          <span className="absolute left-4 top-4 rounded-[2px] border border-grays-ld-black bg-base-lime px-2.5 py-1.5 font-geist text-[10px] font-semibold uppercase tracking-[1px] text-grays-ld-black">
             New
           </span>
         )}

@@ -1,5 +1,5 @@
 import type { AppProps } from "next/app";
-import { Sora } from "next/font/google";
+import { Sora, Geist } from "next/font/google";
 import "@/styles/globals.css";
 
 // next/font is only allowed in _app, not _document, so the CSS variable the
@@ -11,9 +11,17 @@ const sora = Sora({
   display: "swap",
 });
 
+// Only SemiBold is used, on the NEW badge and the swag assistant launcher.
+const geist = Geist({
+  subsets: ["latin"],
+  weight: ["600"],
+  variable: "--font-geist",
+  display: "swap",
+});
+
 export default function App({ Component, pageProps }: AppProps) {
   return (
-    <div className={sora.variable}>
+    <div className={`${sora.variable} ${geist.variable}`}>
       <Component {...pageProps} />
     </div>
   );
