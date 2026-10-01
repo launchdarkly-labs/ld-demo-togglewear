@@ -22,6 +22,8 @@ module.exports = {
         base: {
           lime: "#DDFF46",
           blue: "#405BFF",
+          orange: "#FF9D29",
+          cyan: "#3DD6F5",
         },
         grays: {
           white: "#FFFFFF",
