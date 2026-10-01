@@ -36,8 +36,13 @@ module.exports = {
         },
       },
       fontFamily: {
-        // Sora is loaded through next/font in pages/_document.tsx.
+        // Sora and Geist are loaded through next/font in pages/_app.tsx.
         sora: ["var(--font-sora)", "sans-serif"],
+        // Jen uses Geist SemiBold for two small uppercase labels: the NEW
+        // badge on product cards and the swag assistant launcher. Unlike
+        // Söhne it is openly licensed and served by next/font, so it needs
+        // nothing from the design team.
+        geist: ["var(--font-geist)", "Inter", "sans-serif"],
         // Söhne is a licensed Klim Type Foundry face and is not yet in the
         // repo; until the woff2 files arrive these fall back to the closest
         // available neo-grotesque.
