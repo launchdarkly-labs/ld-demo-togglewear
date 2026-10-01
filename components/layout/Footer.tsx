@@ -55,7 +55,7 @@ export default function Footer() {
             </div>
 
             <form
-              className="flex h-11 w-full items-center justify-between rounded-[10px] border border-grays-ld-black px-4"
+              className="flex h-11 w-full items-center justify-between rounded-[10px] border border-grays-ld-black px-4 focus-within:ring-2 focus-within:ring-grays-ld-black focus-within:ring-offset-2 focus-within:ring-offset-base-lime"
               onSubmit={(event) => event.preventDefault()}
             >
               <input
