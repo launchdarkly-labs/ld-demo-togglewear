@@ -3,6 +3,8 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import Hero from "@/components/sections/Hero";
 import BestSellers from "@/components/sections/BestSellers";
+import QuoteBreak from "@/components/sections/QuoteBreak";
+import DropPromo from "@/components/sections/DropPromo";
 import { type PricingVariant } from "@/lib/products";
 import { type AnnouncementPersona } from "@/components/layout/AnnouncementBar";
 
@@ -31,6 +33,8 @@ export default function Home() {
       <Header persona={persona} />
       <Hero variant={VARIANT_BY_PERSONA[persona]} />
       <BestSellers variant={VARIANT_BY_PERSONA[persona]} />
+      <QuoteBreak />
+      <DropPromo />
       <Footer />
 
       {/* Temporary stand-in for flag evaluation so the personas are reviewable
