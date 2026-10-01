@@ -1,0 +1,82 @@
+import { useState } from "react";
+import { type GetStaticPaths, type GetStaticProps } from "next";
+import Header from "@/components/layout/Header";
+import Footer from "@/components/layout/Footer";
+import ProductDetails from "@/components/sections/ProductDetails";
+import RecommendedForYou from "@/components/sections/RecommendedForYou";
+import DropPromo from "@/components/sections/DropPromo";
+import SwagAssistant from "@/components/ui/SwagAssistant";
+import PersonaSwitcher from "@/components/ui/PersonaSwitcher";
+import {
+  ALL_PRODUCTS,
+  BEST_SELLERS,
+  productBySlug,
+  type PricingVariant,
+  type Product,
+} from "@/lib/products";
+import { type AnnouncementPersona } from "@/components/layout/AnnouncementBar";
+
+const VARIANT_BY_PERSONA: Record<AnnouncementPersona, PricingVariant> = {
+  default: "default",
+  cartAbandon: "default",
+  newCustomer: "default",
+  loyaltyGold: "loyaltyGold",
+};
+
+// Jen's product detail page reuses the top nav, the Fresh drops promo and the
+// footer unchanged from the homepage. Only the details block and the
+// recommendation row are specific to it.
+export default function ProductPage({ product }: { product: Product }) {
+  const [persona, setPersona] = useState<AnnouncementPersona>("default");
+  const variant = VARIANT_BY_PERSONA[persona];
+
+  // Members-only products are absent from the default catalogue, so a
+  // non-member landing here by URL should not see one.
+  const hidden = product.membersOnly && variant !== "loyaltyGold";
+
+  // Recommendations are everything except what you are already looking at.
+  const pool = variant === "loyaltyGold" ? ALL_PRODUCTS : BEST_SELLERS;
+  const recommended = pool.filter((p) => p.slug !== product.slug);
+
+  return (
+    <>
+      <Header persona={persona} />
+
+      {hidden ? (
+        <section className="w-full bg-grays-ld-black">
+          <div className="mx-auto flex max-w-[1440px] flex-col items-start gap-4 px-6 py-32 md:px-10 xl:px-16">
+            <h1 className="font-sora text-h3 font-semibold text-grays-white">
+              Members only
+            </h1>
+            <p className="font-sohne text-main text-grays-02">
+              This drop is open to Loyalty Gold members first. Switch persona to
+              take a look.
+            </p>
+          </div>
+        </section>
+      ) : (
+        <ProductDetails product={product} variant={variant} />
+      )}
+
+      <RecommendedForYou products={recommended} variant={variant} />
+      <DropPromo />
+      <Footer />
+
+      <SwagAssistant persona={persona} />
+      <PersonaSwitcher persona={persona} onChange={setPersona} />
+    </>
+  );
+}
+
+export const getStaticPaths: GetStaticPaths = () => ({
+  // Members-only products get a route too, so the page itself can decide
+  // whether the current persona is allowed to see them.
+  paths: ALL_PRODUCTS.map((p) => ({ params: { slug: p.slug } })),
+  fallback: false,
+});
+
+export const getStaticProps: GetStaticProps = ({ params }) => {
+  const product = productBySlug(String(params?.slug));
+  if (!product) return { notFound: true };
+  return { props: { product } };
+};
