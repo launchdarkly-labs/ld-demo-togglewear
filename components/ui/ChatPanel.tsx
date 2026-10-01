@@ -20,12 +20,13 @@ function ChatProduct({
       href="#"
       className="flex items-center gap-3 rounded-[12px] border border-grays-02 bg-grays-white p-2 transition-colors hover:border-grays-04"
     >
-      <div className="relative size-14 shrink-0 overflow-hidden rounded-[2px] bg-grays-02">
+      {/* 40x56 rather than square, so the portrait photos are not cropped. */}
+      <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded-[2px] bg-grays-02">
         <Image
           src={product.image}
           alt={product.name}
           fill
-          sizes="56px"
+          sizes="40px"
           className="object-cover"
         />
       </div>

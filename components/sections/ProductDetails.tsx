@@ -41,9 +41,15 @@ export default function ProductDetails({
         {product.gallery.map((src, i) => (
           <div
             key={src}
-            // Jen's gallery wells are #e5e8e8, which is slightly lighter than
-            // her Gray 02 token. Kept literal so the panels match the file.
-            className="relative aspect-[618/600] w-full shrink-0 overflow-hidden rounded-[4px] bg-[#e5e8e8] xl:aspect-auto xl:h-[600px]"
+            // The wells take the photos' own 620x880 shape rather than Jen's
+            // 618x600, so the whole garment is visible. Her shorter well
+            // forces a cover crop to discard a third of every frame, which
+            // cuts heads off the model shots and zooms into the flat lays.
+            // The tradeoff is a taller gallery — worth raising with her.
+            //
+            // The well colour is #e5e8e8, slightly lighter than her Gray 02
+            // token. Kept literal so the panels match the file.
+            className="relative aspect-[620/880] w-full shrink-0 overflow-hidden rounded-[4px] bg-[#e5e8e8]"
           >
             <Image
               src={src}
@@ -51,7 +57,10 @@ export default function ProductDetails({
               fill
               priority={i === 0}
               sizes="(min-width: 1280px) 618px, 100vw"
-              className="object-cover"
+              // contain rather than cover: identical while the photos match
+              // the well, but it letterboxes instead of cropping if one ever
+              // does not.
+              className="object-contain"
             />
           </div>
         ))}
