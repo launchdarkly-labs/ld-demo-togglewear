@@ -39,7 +39,7 @@ export default function AnnouncementBar({
 
   return (
     <div
-      className={`flex w-full items-center justify-center py-[10px] ${surface}`}
+      className={`flex w-full items-center justify-center px-6 py-[10px] ${surface}`}
       data-persona={persona}
     >
       <p className="text-center font-sohne-mono text-xsmall-mono">{message}</p>

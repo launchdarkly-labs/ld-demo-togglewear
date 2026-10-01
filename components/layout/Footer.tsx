@@ -13,9 +13,11 @@ const LINK_COLUMNS = [
 export default function Footer() {
   return (
     <footer className="w-full border-t border-grays-02 bg-base-lime">
-      <div className="mx-auto max-w-[1440px] px-16 pb-[137px] pt-[100px]">
-        <div className="flex items-start justify-between">
-          <div className="flex w-[280px] flex-col gap-9">
+      <div className="mx-auto max-w-[1440px] px-6 pb-20 pt-16 md:px-10 md:pb-28 md:pt-20 xl:px-16 xl:pb-[137px] xl:pt-[100px]">
+        {/* The xl track widths are Jen's exact column widths; space-between then
+            reproduces her 1440 gaps. Below xl the columns stack instead. */}
+        <div className="grid grid-cols-1 gap-x-8 gap-y-12 sm:grid-cols-2 xl:grid-cols-[280px_160px_160px_340px] xl:justify-between xl:gap-y-0">
+          <div className="flex flex-col gap-9">
             <p className="font-sora text-h3 font-semibold text-grays-ld-black">
               ToggleWear
             </p>
@@ -26,7 +28,7 @@ export default function Footer() {
           </div>
 
           {LINK_COLUMNS.map(({ heading, links }) => (
-            <div key={heading} className="flex w-40 flex-col gap-[19px]">
+            <div key={heading} className="flex flex-col gap-[19px]">
               <p className="font-sohne text-small font-medium text-grays-ld-black">
                 {heading}
               </p>
@@ -42,7 +44,7 @@ export default function Footer() {
             </div>
           ))}
 
-          <div className="flex w-[340px] flex-col gap-[30px]">
+          <div className="flex flex-col gap-[30px]">
             <div className="flex flex-col gap-4">
               <p className="font-sohne text-small font-medium text-grays-ld-black">
                 Newsletter
