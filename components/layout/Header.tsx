@@ -1,4 +1,6 @@
 import { useState } from "react";
+import Link from "next/link";
+import { useCart } from "@/components/cart/CartProvider";
 import AnnouncementBar, { type AnnouncementPersona } from "./AnnouncementBar";
 
 // Figma component "Top nav" (19:1783), instanced on all eight screens. The
@@ -12,12 +14,13 @@ const NAV_LINKS = [
 
 export default function Header({
   persona = "default",
-  cartCount = 0,
 }: {
   persona?: AnnouncementPersona;
-  cartCount?: number;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  // Read straight from the cart rather than taking a count prop, so no page
+  // has to remember to thread it through.
+  const { count: cartCount } = useCart();
 
   return (
     <header className="w-full">
@@ -69,8 +72,8 @@ export default function Header({
             <button type="button" aria-label="Account">
               <img src="/icons/person.svg" alt="" width={19.8947} height={19.8947} />
             </button>
-            <button
-              type="button"
+            <Link
+              href="/cart"
               aria-label={`Cart, ${cartCount} items`}
               className="flex items-center"
             >
@@ -83,7 +86,7 @@ export default function Header({
               <span className="font-sohne text-small font-medium text-grays-white">
                 ({cartCount})
               </span>
-            </button>
+            </Link>
           </div>
         </div>
 
