@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import SectionPanel from "@/components/layout/SectionPanel";
+import { useCart } from "@/components/cart/CartProvider";
 import {
   formatPrice,
   memberPriceUsd,
@@ -28,6 +29,7 @@ export default function ProductDetails({
 }) {
   const [size, setSize] = useState(product.defaultSize);
   const [colorIndex, setColorIndex] = useState(0);
+  const { add } = useCart();
 
   const isMember = variant === "loyaltyGold";
   const hasColors = (product.colors?.length ?? 0) > 1;
@@ -164,6 +166,7 @@ export default function ProductDetails({
         <div className="flex flex-col gap-3">
           <button
             type="button"
+            onClick={() => add(product.slug, size)}
             className="w-full rounded-[2px] bg-grays-ld-black py-[18px] font-sohne text-large-medium font-medium text-grays-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-grays-ld-black focus-visible:ring-offset-2"
           >
             Add to Cart
