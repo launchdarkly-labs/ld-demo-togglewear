@@ -33,6 +33,17 @@ module.exports = {
           "04": "#6D6E71",
           "black-01": "#101010",
           "ld-black": "#191919",
+          // The hairline Jen borders every cart card and input with, and the
+          // fill behind the product detail galleries. Not a published
+          // variable — it sits between White and Gray 02.
+          hairline: "#E5E8E8",
+        },
+        // Not a published variable either. The cart is the only untokenized
+        // screen in Jen's file, and this purple is the whole of its accent:
+        // the checkout button, the loyalty discount row and the FREE shipping
+        // value. Kept as drawn pending her review.
+        accent: {
+          purple: "#A34FDE",
         },
       },
       fontFamily: {
@@ -77,6 +88,9 @@ module.exports = {
         "main-medium": ["16px", { lineHeight: "1.55", letterSpacing: "-0.48px" }],
         small: ["14px", { lineHeight: "1.4", letterSpacing: "0" }],
         xsmall: ["12px", { lineHeight: "1.5", letterSpacing: "0" }],
+        // Web Text Xsmall CAPS — the cart's uppercase field labels and its
+        // small link actions. 12% tracking rather than the mono token's 3%.
+        "xsmall-caps": ["12px", { lineHeight: "1.2", letterSpacing: "1.44px" }],
         "xsmall-mono": ["12px", { lineHeight: "1.5", letterSpacing: "0.36px" }],
       },
     },
