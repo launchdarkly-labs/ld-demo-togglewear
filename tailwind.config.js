@@ -33,6 +33,10 @@ module.exports = {
           "04": "#6D6E71",
           "black-01": "#101010",
           "ld-black": "#191919",
+          // Gray 06 — the only published grey darker than LD Black's
+          // neighbours. Jen uses it for the loyalty progress track on the
+          // account page, where a hairline would vanish against the black.
+          "06": "#2C2C2C",
           // The hairline Jen borders every cart card and input with, and the
           // fill behind the product detail galleries. Not a published
           // variable — it sits between White and Gray 02.
@@ -80,6 +84,9 @@ module.exports = {
         h1: ["64px", { lineHeight: "1", letterSpacing: "-3.2px" }],
         h2: ["56px", { lineHeight: "1.05", letterSpacing: "-2.8px" }],
         h3: ["40px", { lineHeight: "1.05", letterSpacing: "-2px" }],
+        // Web H4 — the referral card headline on the account page. Söhne
+        // rather than Sora, unlike the other headings.
+        h4: ["32px", { lineHeight: "1.1", letterSpacing: "-0.64px" }],
         // Web H6 — the product detail price.
         h6: ["20px", { lineHeight: "1.15", letterSpacing: "-0.4px" }],
         main: ["16px", { lineHeight: "1.55", letterSpacing: "0" }],
