@@ -1,3 +1,5 @@
+import Field from "@/components/ui/Field";
+
 // Figma "shipping-estimator" (70:1399). The fields are real inputs so the
 // panel is usable in a demo, but nothing recalculates from them yet — the
 // estimate line is the same copy Jen wrote.
@@ -9,34 +11,19 @@ export default function ShippingEstimator() {
       </h2>
 
       <div className="flex flex-col gap-5 sm:flex-row">
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <label
-            htmlFor="cart-country"
-            className="font-sohne text-xsmall-caps font-medium uppercase text-grays-04"
-          >
-            Country
-          </label>
-          <input
-            id="cart-country"
-            defaultValue="United States"
-            className="h-11 w-full rounded-[4px] border border-grays-hairline px-4 font-sohne text-small text-grays-ld-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-grays-ld-black"
-          />
-        </div>
-
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <label
-            htmlFor="cart-zip"
-            className="font-sohne text-xsmall-caps font-medium uppercase text-grays-04"
-          >
-            Postal / ZIP Code
-          </label>
-          <input
-            id="cart-zip"
-            defaultValue="10001"
-            inputMode="numeric"
-            className="h-11 w-full rounded-[4px] border border-grays-hairline px-4 font-sohne text-small text-grays-ld-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-grays-ld-black"
-          />
-        </div>
+        <Field
+          id="cart-country"
+          label="Country"
+          defaultValue="United States"
+          className="flex-1"
+        />
+        <Field
+          id="cart-zip"
+          label="Postal / ZIP Code"
+          defaultValue="10001"
+          inputMode="numeric"
+          className="flex-1"
+        />
       </div>
 
       <div className="flex items-center gap-2 rounded-[4px] bg-grays-01 p-3">
