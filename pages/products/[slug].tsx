@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { type GetStaticPaths, type GetStaticProps } from "next";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -7,28 +6,19 @@ import RecommendedForYou from "@/components/sections/RecommendedForYou";
 import DropPromo from "@/components/sections/DropPromo";
 import SwagAssistant from "@/components/ui/SwagAssistant";
 import PersonaSwitcher from "@/components/ui/PersonaSwitcher";
+import { useShopper } from "@/components/ui/ShopperProvider";
 import {
   ALL_PRODUCTS,
   BEST_SELLERS,
   productBySlug,
-  type PricingVariant,
   type Product,
 } from "@/lib/products";
-import { type AnnouncementPersona } from "@/components/layout/AnnouncementBar";
-
-const VARIANT_BY_PERSONA: Record<AnnouncementPersona, PricingVariant> = {
-  default: "default",
-  cartAbandon: "default",
-  newCustomer: "default",
-  loyaltyGold: "loyaltyGold",
-};
 
 // Jen's product detail page reuses the top nav, the Fresh drops promo and the
 // footer unchanged from the homepage. Only the details block and the
 // recommendation row are specific to it.
 export default function ProductPage({ product }: { product: Product }) {
-  const [persona, setPersona] = useState<AnnouncementPersona>("default");
-  const variant = VARIANT_BY_PERSONA[persona];
+  const { persona, variant } = useShopper();
 
   // Members-only products are absent from the default catalogue, so a
   // non-member landing here by URL should not see one.
@@ -63,7 +53,7 @@ export default function ProductPage({ product }: { product: Product }) {
       <Footer />
 
       <SwagAssistant persona={persona} />
-      <PersonaSwitcher persona={persona} onChange={setPersona} />
+      <PersonaSwitcher />
     </>
   );
 }
