@@ -1,6 +1,8 @@
 import type { AppProps } from "next/app";
 import { Sora, Geist } from "next/font/google";
 import { CartProvider } from "@/components/cart/CartProvider";
+import { OrderProvider } from "@/components/checkout/OrderProvider";
+import { ShopperProvider } from "@/components/ui/ShopperProvider";
 import "@/styles/globals.css";
 
 // next/font is only allowed in _app, not _document, so the CSS variable the
@@ -23,11 +25,16 @@ const geist = Geist({
 export default function App({ Component, pageProps }: AppProps) {
   return (
     <div className={`${sora.variable} ${geist.variable}`}>
-      {/* The cart has to outlive a page change, so it is owned above the
-          page rather than by any one of them. */}
-      <CartProvider>
-        <Component {...pageProps} />
-      </CartProvider>
+      {/* Who is shopping, their cart and their placed order all have to
+          outlive a page change, so they are owned above the page rather than
+          by any one of them. */}
+      <ShopperProvider>
+        <CartProvider>
+          <OrderProvider>
+            <Component {...pageProps} />
+          </OrderProvider>
+        </CartProvider>
+      </ShopperProvider>
     </div>
   );
 }
