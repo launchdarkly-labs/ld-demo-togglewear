@@ -1,6 +1,9 @@
+import Link from "next/link";
+
 import { useCart } from "./CartProvider";
-import { LOYALTY_DISCOUNT, type PricingVariant } from "@/lib/products";
-import { cartTotals, formatMoney, resolveLines } from "@/lib/cart";
+import SummaryLines from "./SummaryLines";
+import { type PricingVariant } from "@/lib/products";
+import { cartTotals, resolveLines } from "@/lib/cart";
 
 // Figma "summary-panel" (70:1448). The purple on the checkout button, the
 // discount row and the FREE value is #A34FDE, which is not one of Jen's
@@ -16,7 +19,6 @@ export default function OrderSummary({
 }) {
   const { lines } = useCart();
   const totals = cartTotals(resolveLines(lines), variant);
-  const isMember = variant === "loyaltyGold";
 
   return (
     <section className="flex flex-col gap-6 rounded-[2px] border border-grays-hairline bg-grays-white p-8">
@@ -24,44 +26,7 @@ export default function OrderSummary({
         Order Summary
       </h2>
 
-      <div className="flex w-full flex-col gap-4 font-sohne text-small">
-        <div className="flex items-start justify-between gap-4">
-          <p className="text-grays-04">Subtotal</p>
-          <p className="font-medium text-grays-ld-black">
-            {formatMoney(totals.subtotal)}
-          </p>
-        </div>
-
-        {isMember && (
-          <div className="flex items-start justify-between gap-4 text-accent-purple">
-            <p>Loyalty Discount ({Math.round(LOYALTY_DISCOUNT * 100)}%)</p>
-            <p className="font-medium">-{formatMoney(totals.discount)}</p>
-          </div>
-        )}
-
-        <div className="flex items-start justify-between gap-4">
-          <p className="text-grays-04">Shipping</p>
-          <p className="font-medium text-accent-purple">FREE</p>
-        </div>
-
-        <div className="flex items-start justify-between gap-4">
-          <p className="text-grays-04">Estimated Tax</p>
-          <p className="font-medium text-grays-ld-black">
-            {formatMoney(totals.tax)}
-          </p>
-        </div>
-      </div>
-
-      <div className="h-px w-full bg-grays-hairline" />
-
-      <div className="flex items-center justify-between gap-4">
-        <p className="font-sohne text-main font-medium text-grays-ld-black">
-          Total
-        </p>
-        <p className="font-sohne text-h6 font-medium text-grays-ld-black">
-          {formatMoney(totals.total)}
-        </p>
-      </div>
+      <SummaryLines totals={totals} variant={variant} />
 
       <div className="flex flex-col gap-2">
         <label
@@ -85,12 +50,12 @@ export default function OrderSummary({
         </div>
       </div>
 
-      <button
-        type="button"
-        className="w-full rounded-[2px] bg-accent-purple py-4 font-sohne text-large-medium font-medium text-grays-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-purple focus-visible:ring-offset-2"
+      <Link
+        href="/checkout"
+        className="w-full rounded-[2px] bg-accent-purple py-4 text-center font-sohne text-large-medium font-medium text-grays-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-purple focus-visible:ring-offset-2"
       >
         Continue to Checkout
-      </button>
+      </Link>
 
       <div className="flex items-center justify-center gap-2">
         <img
