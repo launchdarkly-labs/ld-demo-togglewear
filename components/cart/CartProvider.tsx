@@ -25,6 +25,13 @@ type CartApi = {
   add: (slug: string, size: string, quantity?: number) => void;
   setQuantity: (slug: string, size: string, quantity: number) => void;
   remove: (slug: string, size: string) => void;
+  // Emptied when an order is placed, since a cart that still holds the things
+  // you just bought is the kind of detail a prospect notices.
+  clear: () => void;
+  // Which then leaves the cart empty for good, because the seed below only
+  // applies before anything has been written to storage. reset puts it back,
+  // so the whole flow can be demoed twice in a row.
+  reset: () => void;
 };
 
 const CartContext = createContext<CartApi | null>(null);
@@ -88,11 +95,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [remove]
   );
 
+  const clear = useCallback(() => setLines([]), []);
+  const reset = useCallback(() => setLines(SEED), []);
+
   const count = lines.reduce((sum, l) => sum + l.quantity, 0);
 
   return (
     <CartContext.Provider
-      value={{ lines, count, add, setQuantity, remove }}
+      value={{ lines, count, add, setQuantity, remove, clear, reset }}
     >
       {children}
     </CartContext.Provider>
