@@ -69,9 +69,9 @@ export default function Header({
             <button type="button" aria-label="Search">
               <img src="/icons/magnify.svg" alt="" width={17.2632} height={17.2632} />
             </button>
-            <button type="button" aria-label="Account">
+            <Link href="/account" aria-label="Account">
               <img src="/icons/person.svg" alt="" width={19.8947} height={19.8947} />
-            </button>
+            </Link>
             <Link
               href="/cart"
               aria-label={`Cart, ${cartCount} items`}
