@@ -17,12 +17,19 @@ Two scenarios, one per flag:
 Both loops poll the flag and exit once its measured rollout is over, whether
 that happened by completing or by being rolled back.
 
+Flag 05 additionally reports real telemetry through the observability plugin,
+so its Monitoring tab fills with the errors, logs and traces underneath the
+regression instead of only the metric charts.  That plugin needs Python 3.10
+or newer; on anything older the metrics and the rollback still happen, just
+without the telemetry beside them.
+
 The ToggleBank, Investment, Galaxy Marketplace and public-sector generators
 that used to live here were removed with the rest of those resources; they
 are in git history and in ld-core-demo.  Experiment and AI Config generators
 come back with the capabilities that need them.
 """
 
+import contextlib
 import logging
 import math
 import os
@@ -36,6 +43,17 @@ import requests
 from dotenv import load_dotenv
 from ldclient.config import Config
 from ldclient.context import Context
+
+# The observability plugin is what fills in the Errors, Logs and Traces panels
+# on flag 05's Monitoring tab.  It needs Python 3.10 or newer, so an older
+# interpreter still produces every metric and both rollouts — it just does so
+# without the telemetry that sits alongside them.
+try:
+    from ldobserve import ObservabilityConfig, ObservabilityPlugin, observe
+
+    OBSERVABILITY_AVAILABLE = True
+except ImportError:
+    OBSERVABILITY_AVAILABLE = False
 
 load_dotenv()
 
@@ -63,6 +81,19 @@ ORDER_SUCCESS_KEY = "order-pipeline-success-rate"
 ORDER_LATENCY_KEY = "order-pipeline-latency"
 ORDER_ERROR_KEY = "order-pipeline-error-rate"
 ORDERS_PROCESSED_KEY = "orders-processed"
+ORDER_SERVICE_NAME = "togglewear-order-pipeline"
+
+# Only a share of failed orders is reported as an exception.  Every failure is
+# already counted by the error-rate metric; these exist to give the Errors
+# panel a believable stream with a visible upward trend.  At the peak of the
+# collapse two thirds of orders fail, so reporting all of them would mean
+# thousands of near-identical records for no extra narrative.
+ERROR_SAMPLE_RATE = 0.3
+
+# Healthy orders are logged far more sparingly still.  The generator places
+# roughly eight orders a second for thirteen minutes, and logging all of them
+# would bury the failures that the Logs panel is there to show.
+SUCCESS_LOG_SAMPLE_RATE = 0.05
 
 logging.basicConfig(
     level=logging.INFO,
@@ -73,6 +104,127 @@ logging.basicConfig(
 # make urllib3 discard and reopen connections, which is harmless churn but
 # floods the log with "Connection pool is full" warnings.
 logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
+
+
+# -------------------------------------------------------- observability
+
+class OrderPipelineError(Exception):
+    """Base class for the synthetic Order Pipeline v2 failures.
+
+    Each subclass is raised for real rather than merely described, so that the
+    Errors panel gets a genuine stack trace and groups failures by type the
+    way it would for a service that was actually breaking.
+    """
+
+
+class OrderPipelineTimeout(OrderPipelineError):
+    """The pipeline did not return within its deadline."""
+
+
+class StockReservationError(OrderPipelineError):
+    """Stock could not be held for one or more line items."""
+
+
+class AddressValidationError(OrderPipelineError):
+    """The shipping address was rejected downstream."""
+
+
+class PaymentAuthorisationError(OrderPipelineError):
+    """The payment processor refused the authorisation."""
+
+
+class OrderPersistenceError(OrderPipelineError):
+    """The order could not be written to its store."""
+
+
+# Pairing each failure with the step it belongs to means the trace shows where
+# an order died rather than only that it did.
+ORDER_FAILURES = [
+    (OrderPipelineTimeout, "order-pipeline.submit",
+     "Order pipeline timed out after 30s"),
+    (StockReservationError, "order-pipeline.reserve-stock",
+     "Could not reserve stock for one or more line items"),
+    (AddressValidationError, "order-pipeline.validate-address",
+     "Shipping address failed validation"),
+    (PaymentAuthorisationError, "order-pipeline.authorise-payment",
+     "Payment authorisation returned 500"),
+    (OrderPersistenceError, "order-pipeline.persist",
+     "Order write failed: connection pool exhausted"),
+]
+
+
+def observe_span(name, attributes=None):
+    """A span when the plugin loaded, otherwise something that does nothing.
+
+    Flag evaluations have to happen inside one of these.  The plugin records
+    each evaluation onto whichever span is current, and that is the link that
+    files the resulting telemetry under the flag in LaunchDarkly.
+
+    The span deliberately does not record exceptions itself; observe_error
+    does that, because it is the documented route to the Errors panel and
+    doing both would report every failure twice.
+    """
+    if OBSERVABILITY_AVAILABLE:
+        return observe.start_span(name, attributes or {}, record_exception=False)
+    return contextlib.nullcontext()
+
+
+def observe_error(error, attributes=None):
+    if OBSERVABILITY_AVAILABLE:
+        observe.record_exception(error, attributes or {})
+
+
+def observe_log(message, level, attributes=None):
+    if OBSERVABILITY_AVAILABLE:
+        observe.record_log(message, level, attributes or {})
+
+
+def report_order_failure(order_id, ctx, latency, version):
+    """Raise, catch and report one order failure.
+
+    The exception is raised rather than constructed so the Errors panel gets a
+    real stack trace, and it is raised inside a child span named after the
+    step that failed, so the trace shows where in the pipeline the order died.
+    """
+    error_type, step, message = random.choice(ORDER_FAILURES)
+    attributes = {
+        "order.id": order_id,
+        "shopper.key": ctx.key,
+        "service.name": ORDER_SERVICE_NAME,
+        "pipeline.step": step,
+        "pipeline.version": version,
+        "order.latency_ms": latency,
+    }
+
+    try:
+        with observe_span(step, attributes):
+            raise error_type(message)
+    except OrderPipelineError as error:
+        observe_error(error, attributes)
+        observe_log(f"{order_id} failed at {step}: {message}",
+                    logging.ERROR, attributes)
+
+
+def report_order_success(order_id, ctx, latency, version):
+    """Log a completed order, sparsely.
+
+    Slow orders are always logged, because rising latency is part of what the
+    rollout is supposed to reveal; ordinary ones are sampled.
+    """
+    if latency > 300:
+        level, message = logging.WARNING, f"{order_id} completed slowly in {latency}ms"
+    elif random.random() < SUCCESS_LOG_SAMPLE_RATE:
+        level, message = logging.INFO, f"{order_id} completed in {latency}ms"
+    else:
+        return
+
+    observe_log(message, level, {
+        "order.id": order_id,
+        "shopper.key": ctx.key,
+        "service.name": ORDER_SERVICE_NAME,
+        "pipeline.version": version,
+        "order.latency_ms": latency,
+    })
 
 
 # ---------------------------------------------------------------- helpers
@@ -295,101 +447,104 @@ def order_pipeline_failed_generator(client, stop_event):
 
         try:
             ctx = generate_shopper_context()
-            on_v2 = client.variation(ORDER_FLAG_KEY, ctx, False)
             elapsed = time.time() - start_time
+            order_id = f"order-{iteration:06d}"
 
             walk_test_lat = max(-15, min(15, walk_test_lat + random.uniform(-3, 3)))
             walk_ctrl_lat = max(-12, min(12, walk_ctrl_lat + random.uniform(-3, 3)))
             walk_test_err = max(-3, min(3, walk_test_err + random.uniform(-0.8, 0.8)))
             walk_test_suc = max(-3, min(3, walk_test_suc + random.uniform(-0.8, 0.8)))
 
-            if on_v2:
-                osc_lat = (10 * math.sin(elapsed / 45)
-                           + 7 * math.sin(elapsed / 19)
-                           + 4 * math.sin(elapsed / 8))
-                osc_err = (2.0 * math.sin(elapsed / 40)
-                           + 1.5 * math.sin(elapsed / 17)
-                           + 1.0 * math.sin(elapsed / 7))
-                osc_suc = (2.0 * math.sin(elapsed / 36)
-                           + 1.5 * math.sin(elapsed / 15)
-                           + 1.0 * math.sin(elapsed / 6))
+            # The evaluation happens inside the span deliberately.  The plugin
+            # attaches it to whichever span is current, and that is the link
+            # that files this order's telemetry under flag 05.
+            with observe_span("order-pipeline.submit", {
+                "order.id": order_id,
+                "shopper.key": ctx.key,
+                "service.name": ORDER_SERVICE_NAME,
+            }):
+                on_v2 = client.variation(ORDER_FLAG_KEY, ctx, False)
 
-                if elapsed < SUSTAIN_END:
-                    progress = elapsed / SUSTAIN_END
+                if on_v2:
+                    osc_lat = (10 * math.sin(elapsed / 45)
+                               + 7 * math.sin(elapsed / 19)
+                               + 4 * math.sin(elapsed / 8))
+                    osc_err = (2.0 * math.sin(elapsed / 40)
+                               + 1.5 * math.sin(elapsed / 17)
+                               + 1.0 * math.sin(elapsed / 7))
+                    osc_suc = (2.0 * math.sin(elapsed / 36)
+                               + 1.5 * math.sin(elapsed / 15)
+                               + 1.0 * math.sin(elapsed / 6))
 
-                    error_pct = 11 + (5 * progress) + osc_err + walk_test_err + random.uniform(-1.2, 1.2)
-                    error_pct = max(6, min(22, error_pct))
+                    if elapsed < SUSTAIN_END:
+                        progress = elapsed / SUSTAIN_END
 
-                    success_pct = 84 - (5 * progress) + osc_suc + walk_test_suc + random.uniform(-1.2, 1.2)
-                    success_pct = max(74, min(90, success_pct))
+                        error_pct = 11 + (5 * progress) + osc_err + walk_test_err + random.uniform(-1.2, 1.2)
+                        error_pct = max(6, min(22, error_pct))
 
-                    latency = int(random.gauss(148 + (25 * progress) + osc_lat + walk_test_lat, 26))
-                    latency = max(90, min(280, latency))
+                        success_pct = 84 - (5 * progress) + osc_suc + walk_test_suc + random.uniform(-1.2, 1.2)
+                        success_pct = max(74, min(90, success_pct))
+
+                        latency = int(random.gauss(148 + (25 * progress) + osc_lat + walk_test_lat, 26))
+                        latency = max(90, min(280, latency))
+                    else:
+                        # Ease-in rather than linear, so the collapse accelerates.
+                        cat_progress = min((elapsed - SUSTAIN_END) / (CATASTROPHE_END - SUSTAIN_END), 1.0)
+                        curve = 1.0 - ((1.0 - cat_progress) ** 2.2)
+
+                        error_pct = 18 + (48 * curve) + 2 * math.sin(elapsed / 20) + random.uniform(-1.5, 1.5)
+                        error_pct = max(16, min(80, error_pct))
+
+                        success_pct = 78 - (48 * curve) + 1.5 * math.sin(elapsed / 22) + random.uniform(-1.5, 1.5)
+                        success_pct = max(18, min(82, success_pct))
+
+                        latency = int(random.gauss(
+                            175 + (340 * curve) + osc_lat * 0.5 + walk_test_lat, 40 + 30 * curve))
+                        latency = max(120, min(750, latency))
+
+                    error_val = 100 if random.random() * 100 < error_pct else 0
+                    success_val = 100 if random.random() * 100 < success_pct else 0
+
+                    client.track(ORDER_ERROR_KEY, ctx, None, error_val)
+                    client.track(ORDER_SUCCESS_KEY, ctx, None, success_val)
+                    client.track(ORDER_LATENCY_KEY, ctx, None, latency)
+                    client.track(ORDERS_PROCESSED_KEY, ctx, None, 1)
+
+                    if error_val == 100:
+                        if random.random() < ERROR_SAMPLE_RATE:
+                            report_order_failure(order_id, ctx, latency, "v2")
+                    else:
+                        report_order_success(order_id, ctx, latency, "v2")
                 else:
-                    # Ease-in rather than linear, so the collapse accelerates.
-                    cat_progress = min((elapsed - SUSTAIN_END) / (CATASTROPHE_END - SUSTAIN_END), 1.0)
-                    curve = 1.0 - ((1.0 - cat_progress) ** 2.2)
+                    osc = (10 * math.sin(elapsed / 50)
+                           + 6 * math.sin(elapsed / 22)
+                           + 3 * math.sin(elapsed / 10))
 
-                    error_pct = 18 + (48 * curve) + 2 * math.sin(elapsed / 20) + random.uniform(-1.5, 1.5)
-                    error_pct = max(16, min(80, error_pct))
+                    ctrl_latency = int(random.gauss(110 + osc + walk_ctrl_lat, 25))
+                    ctrl_latency = max(55, min(200, ctrl_latency))
 
-                    success_pct = 78 - (48 * curve) + 1.5 * math.sin(elapsed / 22) + random.uniform(-1.5, 1.5)
-                    success_pct = max(18, min(82, success_pct))
+                    ctrl_error_pct = 4 + 1.5 * math.sin(elapsed / 28) + random.uniform(-1.5, 1.5)
+                    ctrl_error_pct = max(1, min(9, ctrl_error_pct))
 
-                    latency = int(random.gauss(
-                        175 + (340 * curve) + osc_lat * 0.5 + walk_test_lat, 40 + 30 * curve))
-                    latency = max(120, min(750, latency))
+                    ctrl_success_pct = 93 + 1.2 * math.sin(elapsed / 24) + random.uniform(-1.2, 1.2)
+                    ctrl_success_pct = max(88, min(97, ctrl_success_pct))
 
-                error_val = 100 if random.random() * 100 < error_pct else 0
-                success_val = 100 if random.random() * 100 < success_pct else 0
+                    ctrl_error_val = 100 if random.random() * 100 < ctrl_error_pct else 0
 
-                client.track(ORDER_ERROR_KEY, ctx, None, error_val)
-                client.track(ORDER_SUCCESS_KEY, ctx, None, success_val)
-                client.track(ORDER_LATENCY_KEY, ctx, None, latency)
-                client.track(ORDERS_PROCESSED_KEY, ctx, None, 1)
+                    client.track(ORDER_ERROR_KEY, ctx, None, ctrl_error_val)
+                    client.track(ORDER_SUCCESS_KEY, ctx, None,
+                                 100 if random.random() * 100 < ctrl_success_pct else 0)
+                    client.track(ORDER_LATENCY_KEY, ctx, None, ctrl_latency)
+                    client.track(ORDERS_PROCESSED_KEY, ctx, None, 1)
 
-                # Also surfaces the failure as a frontend error, which is what
-                # the Observability SDK would emit for real. Harmless until
-                # those packages land, and the data is waiting when they do.
-                if error_val == 100:
-                    failures = [
-                        ("OrderPipelineTimeout", "Order pipeline timed out after 30 seconds"),
-                        ("StockReservationError", "Could not reserve stock for one or more line items"),
-                        ("AddressValidationError", "Shipping address failed validation"),
-                        ("PaymentAuthorisationError", "Payment authorisation returned 500"),
-                        ("OrderPersistenceError", "Order write failed: connection pool exhausted"),
-                    ]
-                    kind, message = random.choice(failures)
-                    client.track("$ld:telemetry:error", ctx, {
-                        "error.kind": kind,
-                        "error.message": message,
-                        "service.name": "order-pipeline-v2",
-                        "component": "OrderPipeline",
-                        "order.id": f"order-{iteration}",
-                        "user.id": ctx.key,
-                        "flag.key": ORDER_FLAG_KEY,
-                        "severity": "high",
-                    }, 1)
-            else:
-                osc = (10 * math.sin(elapsed / 50)
-                       + 6 * math.sin(elapsed / 22)
-                       + 3 * math.sin(elapsed / 10))
-
-                ctrl_latency = int(random.gauss(110 + osc + walk_ctrl_lat, 25))
-                ctrl_latency = max(55, min(200, ctrl_latency))
-
-                ctrl_error_pct = 4 + 1.5 * math.sin(elapsed / 28) + random.uniform(-1.5, 1.5)
-                ctrl_error_pct = max(1, min(9, ctrl_error_pct))
-
-                ctrl_success_pct = 93 + 1.2 * math.sin(elapsed / 24) + random.uniform(-1.2, 1.2)
-                ctrl_success_pct = max(88, min(97, ctrl_success_pct))
-
-                client.track(ORDER_ERROR_KEY, ctx, None,
-                             100 if random.random() * 100 < ctrl_error_pct else 0)
-                client.track(ORDER_SUCCESS_KEY, ctx, None,
-                             100 if random.random() * 100 < ctrl_success_pct else 0)
-                client.track(ORDER_LATENCY_KEY, ctx, None, ctrl_latency)
-                client.track(ORDERS_PROCESSED_KEY, ctx, None, 1)
+                    # The control arm reports too, so the panels have a quiet
+                    # baseline to contrast v2's spike against rather than
+                    # making it look as though only one pipeline is monitored.
+                    if ctrl_error_val == 100:
+                        if random.random() < ERROR_SAMPLE_RATE:
+                            report_order_failure(order_id, ctx, ctrl_latency, "v1")
+                    else:
+                        report_order_success(order_id, ctx, ctrl_latency, "v1")
 
             iteration += 1
             status_check_counter += 1
@@ -421,6 +576,18 @@ def generate_results(project_key, api_key):
     # shrinks payloads around tenfold; the small queue caps the worst case on
     # older SDKs that lack it.
     config_kwargs = dict(sdk_key=sdk_key, events_max_pending=2000, flush_interval=1)
+
+    if OBSERVABILITY_AVAILABLE:
+        config_kwargs["plugins"] = [ObservabilityPlugin(ObservabilityConfig(
+            service_name=ORDER_SERVICE_NAME,
+            service_version=os.getenv("GITHUB_SHA", "local"),
+            environment=ENVIRONMENT_KEY,
+        ))]
+    else:
+        logging.warning(
+            "Observability plugin unavailable, so flag 05's Monitoring tab will "
+            "have no errors, logs or traces. It needs Python 3.10 or newer.")
+
     try:
         ldclient.set_config(Config(enable_event_compression=True, **config_kwargs))
     except TypeError:
