@@ -66,16 +66,35 @@ class DemoBuilder:
     # enable_csa_shadow_ai_feature_flags, project_settings and
     # setup_template_environment all do — or depends on experiments that no
     # longer exist.  Each one returns alongside the capability that needs it.
-    #
-    # LDGeneratorsRunner is out for the same reason: it generates traffic
-    # against flags, and there are none yet.  It comes back with results
-    # generation.
     def build(self):
         self.create_project()
         self.create_segments()
         self.create_metrics()
         self.create_metric_groups()
         self.create_flags()
+        self.generate_results()
+
+    # Synthetic traffic for the guarded releases, in a subprocess so the SDK
+    # client it opens is torn down with it.
+    #
+    # Has to run after create_flags: both generators poll for their flag's
+    # rollout and give up if it never turns up.  Blocks while they work, which
+    # is most of a quarter of an hour — almost all of it spent waiting for flag
+    # 05's regression to grow large enough that LaunchDarkly rolls it back.
+    def generate_results(self):
+        print("Generating demo results — allow around 13 minutes", end="...\n")
+        env = os.environ.copy()
+        env["LD_PROJECT_KEY"] = self.project_key
+        env["LD_API_KEY"] = self.api_key
+        env["LD_SDK_KEY"] = self.sdk_key
+        env["LD_CLIENT_KEY"] = self.client_id
+
+        proc = subprocess.Popen(
+            ["python3", os.path.join(os.path.dirname(__file__), "LDGeneratorsRunner.py")],
+            env=env,
+        )
+        proc.wait()
+        print("Done")
 
     def create_project(self):
         if self.ldproject.project_exists(self.project_key):
