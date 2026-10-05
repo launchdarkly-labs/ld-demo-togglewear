@@ -1,3 +1,5 @@
+import { useFlags } from "launchdarkly-react-client-sdk";
+
 import { TIER } from "@/lib/account";
 
 // Figma "Loyalty Progress Card" (78:1529).
@@ -8,6 +10,7 @@ import { TIER } from "@/lib/account";
 // colour, so her bar renders as a flat grey track. Lime is what the badge
 // above it and the gift icon below it both use.
 export default function TierStatusCard() {
+  const { giftUnlockTeaser } = useFlags();
   const pct = Math.min(100, Math.round((TIER.points / TIER.target) * 100));
   const remaining = Math.max(0, TIER.target - TIER.points);
 
@@ -52,21 +55,25 @@ export default function TierStatusCard() {
         </div>
       </div>
 
-      {/* #222222 is not a published variable — it sits between LD Black and
+      {/* Prerequisite-gated on the Swag Tier Program flag, so it cannot be
+          reached unless the card around it is live.
+          #222222 is not a published variable — it sits between LD Black and
           Gray 06, and this strip is the only place Jen uses it. */}
-      <div className="flex items-center gap-2 rounded-[6px] bg-[#222222] p-3">
-        <img
-          src="/icons/gift.svg"
-          alt=""
-          width={24}
-          height={24}
-          className="shrink-0 max-w-none"
-        />
-        <p className="font-sohne text-xsmall text-grays-white">
-          You&rsquo;re {remaining} points away from unlocking your next
-          exclusive gift!
-        </p>
-      </div>
+      {giftUnlockTeaser && (
+        <div className="flex items-center gap-2 rounded-[6px] bg-[#222222] p-3">
+          <img
+            src="/icons/gift.svg"
+            alt=""
+            width={24}
+            height={24}
+            className="shrink-0 max-w-none"
+          />
+          <p className="font-sohne text-xsmall text-grays-white">
+            You&rsquo;re {remaining} points away from unlocking your next
+            exclusive gift!
+          </p>
+        </div>
+      )}
     </section>
   );
 }

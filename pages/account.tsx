@@ -9,6 +9,7 @@ import Preferences from "@/components/account/Preferences";
 import SwagAssistant from "@/components/ui/SwagAssistant";
 import PersonaSwitcher from "@/components/ui/PersonaSwitcher";
 import { useShopper } from "@/components/ui/ShopperProvider";
+import { useFlags } from "launchdarkly-react-client-sdk";
 
 // Figma "account-profile" (78:1485). Jen drew it for a gold member, which is
 // the only variant that exists — but it is one page rather than one page per
@@ -20,6 +21,7 @@ import { useShopper } from "@/components/ui/ShopperProvider";
 // inside 64px page padding. Below xl they stack, sidebar first.
 export default function AccountPage() {
   const { persona, shopper } = useShopper();
+  const { swagTierProgram } = useFlags();
 
   return (
     <>
@@ -29,9 +31,11 @@ export default function AccountPage() {
         <main className="mx-auto flex max-w-[1440px] flex-col gap-12 px-6 py-12 md:px-10 xl:flex-row xl:px-16">
           <div className="flex flex-col gap-6 xl:w-[380px] xl:shrink-0">
             <ProfileCard tier={shopper.loyaltyTier} />
-            {/* A shopper with no tier has no progress to show, so the card
-                goes rather than rendering at zero. */}
-            {shopper.loyaltyTier === "gold" && <TierStatusCard />}
+            {/* Was gated on the gold tier; LaunchDarkly owns it now. The flag
+                is the rollout — developers and beta testers by segment, then
+                half of everyone else — rather than the entitlement, so the
+                card appears for whoever the rollout reaches. */}
+            {swagTierProgram && <TierStatusCard />}
           </div>
 
           <div className="flex min-w-0 flex-1 flex-col gap-12">
