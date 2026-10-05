@@ -7,6 +7,7 @@ import DropPromo from "@/components/sections/DropPromo";
 import SwagAssistant from "@/components/ui/SwagAssistant";
 import PersonaSwitcher from "@/components/ui/PersonaSwitcher";
 import { useShopper } from "@/components/ui/ShopperProvider";
+import { useFlags } from "launchdarkly-react-client-sdk";
 import {
   ALL_PRODUCTS,
   BEST_SELLERS,
@@ -19,6 +20,7 @@ import {
 // recommendation row are specific to it.
 export default function ProductPage({ product }: { product: Product }) {
   const { persona, variant } = useShopper();
+  const { swagRecommendations } = useFlags();
 
   // Members-only products are absent from the default catalogue, so a
   // non-member landing here by URL should not see one.
@@ -48,7 +50,11 @@ export default function ProductPage({ product }: { product: Product }) {
         <ProductDetails product={product} variant={variant} />
       )}
 
-      <RecommendedForYou products={recommended} variant={variant} />
+      {/* Eased out by a progressive rollout, so most shoppers do not have it
+          yet. Switch Access to Beta to see it regardless of the schedule. */}
+      {swagRecommendations && (
+        <RecommendedForYou products={recommended} variant={variant} />
+      )}
       <DropPromo />
       <Footer />
 
