@@ -15,13 +15,18 @@ Tables:
 Entries with {"custom": "<method name>"} defer to a hand-written method on
 DemoBuilder for cases that don't fit the generic shape.
 
-The tables are empty on purpose.  What was here described five products —
+The tables started empty on purpose.  What was here described five products —
 ToggleBank, Investment, Galaxy Marketplace, Public Sector and LaunchAirways —
 and ToggleWear is one.  Rather than rename 49 flags and 41 metrics into retail
 clothing, the resources are being rebuilt a capability at a time, so the flag
 list in LaunchDarkly always says exactly which capabilities are covered.  The
 originals are in git history and in ld-core-demo if any of them are wanted
 back.
+
+Flags are numbered rather than lettered: core-demo's A/B/D/P prefixes separate
+its verticals, and ToggleWear has none to separate.  The number is the build
+order and the name carries the capability, so the flag list reads as the demo
+script.  Numbers are not reused if a flag is dropped.
 
 PIPELINE_FLAGS is gone outright: LaunchDarkly has deprecated release
 pipelines, so there is nothing for that table to build.
@@ -38,10 +43,76 @@ METRICS = []
 METRIC_GROUPS = []
 
 # Flags — create_flag(**spec["flag"]), plus any "post" follow-up calls
-FLAGS = []
+FLAGS = [
+    # ---- Capability 1: targeting, segmentation and flag prerequisites ----
+    #
+    # Gates the Swag Tier Status card on /account.  Exposure runs staff, then
+    # testers, then a half-and-half rollout of everyone else.  Note that this
+    # decides *whether* a shopper sees the card at all, while loyaltyTier
+    # decides what the card then says — lib/shopper.ts keeps those two axes
+    # separate on purpose, and this flag only touches the first one.
+    #
+    # Unlike core-demo, the segment rules live here in the table rather than in
+    # a hand-written add_targeting_rules method, so the whole flag is one spec.
+    {'flag': {'flag_key': 'swagTierProgram',
+              'flag_name': '01 - Swag Tier Program - Targeting & Segmentation',
+              'description': 'Shows the Swag Tier Status card on the account page. Released '
+                             'to developers and beta testers first, then to half of all '
+                             'other shoppers.',
+              'variations': [{'value': True, 'name': 'Show Swag Tier Program'},
+                             {'value': False, 'name': 'Hide Swag Tier Program'}],
+              'tags': ['targeting', 'segments', 'loyalty', 'togglewear'],
+              'on_variation': 0},
+     'post': [['add_segment_to_flag',
+               ['swagTierProgram', 'developers', 'production'],
+               {}],
+              ['add_segment_to_flag',
+               ['swagTierProgram', 'beta-testers', 'production'],
+               {}],
+              ['set_default_percentage_rollout',
+               ['swagTierProgram', 'production'],
+               {'weights': {True: 50000, False: 50000}}],
+              ['toggle_flag',
+               ['swagTierProgram', 'on', 'production'],
+               {}]]},
+
+    # The gift strip inside that card.  Prerequisite-gated rather than given
+    # its own copy of the targeting above, which is the point of the pair: it
+    # cannot appear for a shopper who has no card to put it in, and turning 01
+    # off makes it vanish while it still reads On in the flag list.
+    {'flag': {'flag_key': 'giftUnlockTeaser',
+              'flag_name': '02 - Gift Unlock Teaser - Flag Prerequisite',
+              'description': 'The "points away from your next exclusive gift" strip inside '
+                             'the Swag Tier Status card. Requires 01 to be serving Show, so '
+                             'it inherits that rollout instead of repeating it.',
+              'variations': [{'value': True, 'name': 'Show Gift Unlock Teaser'},
+                             {'value': False, 'name': 'Hide Gift Unlock Teaser'}],
+              'tags': ['prerequisite', 'loyalty', 'togglewear'],
+              'on_variation': 0},
+     'post': [['add_prerequisite_to_flag',
+               ['giftUnlockTeaser', 'swagTierProgram', 0, 'production'],
+               {}],
+              ['toggle_flag',
+               ['giftUnlockTeaser', 'on', 'production'],
+               {}]]},
+]
 
 # Segments — created in every environment listed, with shared rules
-SEGMENTS = []
+#
+# The values are lowercase because that is what ShopperRole in lib/shopper.ts
+# actually emits; core-demo's equivalents are capitalised and would never match.
+SEGMENTS = [
+    {'key': 'developers',
+     'name': 'Developers',
+     'description': 'ToggleWear engineers, who see storefront changes before anyone else',
+     'environments': ['test', 'production', 'template-env'],
+     'rules': [['user', 'role', 'in', ['developer']]]},
+    {'key': 'beta-testers',
+     'name': 'Beta Testers',
+     'description': 'Shoppers who opted in to trying storefront features early',
+     'environments': ['test', 'production', 'template-env'],
+     'rules': [['user', 'role', 'in', ['beta']]]},
+]
 
 # Context kinds — [key, for_experiment]
 #
