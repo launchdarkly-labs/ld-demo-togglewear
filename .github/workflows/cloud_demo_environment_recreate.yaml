@@ -159,7 +159,9 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: "3.9"
+          # 3.10 or newer, or the observability plugin in requirements.txt will
+          # not install and provisioned demos lose their errors, logs and traces.
+          python-version: "3.12"
 
       - name: Install dependencies
         run: |
