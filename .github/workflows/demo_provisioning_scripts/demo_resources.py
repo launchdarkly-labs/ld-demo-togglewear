@@ -37,7 +37,93 @@ pipelines, so there is nothing for that table to build.
 # ==========================================================================
 
 # Metrics — passed straight to LDPlatform.create_metric(**spec)
-METRICS = []
+#
+# Every event below is emitted by results_generator.py, not by the storefront.
+# A guarded release needs a service that can measurably degrade, and ToggleWear
+# has no backend, so the data is synthetic — which is also how core-demo does it.
+#
+# Note the deliberate split between the two sets. The inventory metrics are
+# conversion metrics (one yes/no per context) because a healthy rollout only has
+# to avoid regressing. The order-pipeline ones are numeric in percentage points
+# because that flag has to show a regression building: the generator tracks 100
+# or 0 per event so each chart bucket averages to a smooth mean. Core-demo
+# learned this the hard way — as conversion metrics the same chart came out flat
+# and stepped, and the detector never fired convincingly.
+METRICS = [
+    # ---- 04 Live Inventory Service: healthy guarded release ----
+    {'metric_key': 'inventory-lookup-success',
+     'metric_name': 'Inventory Lookup Success',
+     'event_key': 'inventory-lookup-success',
+     'metric_description': 'Stock-level lookups that returned a result. The headline metric for '
+                           'the live inventory service rollout.',
+     'numeric': False,
+     'unit': '',
+     'success_criteria': 'HigherThanBaseline',
+     'tags': ['guarded-release', 'inventory', 'togglewear']},
+    {'metric_key': 'inventory-lookup-latency',
+     'metric_name': 'Inventory Lookup Latency',
+     'event_key': 'inventory-lookup-latency',
+     'metric_description': 'Time taken to return a stock level, in milliseconds.',
+     'numeric': True,
+     'unit': 'ms',
+     'success_criteria': 'LowerThanBaseline',
+     'tags': ['guarded-release', 'inventory', 'togglewear']},
+    {'metric_key': 'inventory-lookup-errors',
+     'metric_name': 'Inventory Lookup Errors',
+     'event_key': 'inventory-lookup-errors',
+     'metric_description': 'Stock-level lookups that failed outright.',
+     'numeric': False,
+     'unit': '',
+     'success_criteria': 'LowerThanBaseline',
+     'tags': ['guarded-release', 'inventory', 'togglewear']},
+    {'metric_key': 'inventory-lookups-served',
+     'metric_name': 'Inventory Lookups Served',
+     'event_key': 'inventory-lookups-served',
+     'metric_description': 'Total stock-level lookups handled. Attached to the flag for release '
+                           'monitoring rather than monitored for regressions.',
+     'numeric': True,
+     'unit': 'lookups',
+     'success_criteria': 'HigherThanBaseline',
+     'tags': ['guarded-release', 'inventory', 'togglewear', 'business']},
+
+    # ---- 05 Order Pipeline v2: failed guarded release ----
+    {'metric_key': 'order-pipeline-success-rate',
+     'metric_name': 'Order Pipeline Success Rate',
+     'event_key': 'order-pipeline-success-rate',
+     'metric_description': 'Share of orders the pipeline accepted, in percentage points. Falls '
+                           'away as the v2 pipeline degrades.',
+     'numeric': True,
+     'unit': 'pp',
+     'success_criteria': 'HigherThanBaseline',
+     'tags': ['guarded-release', 'orders', 'togglewear']},
+    {'metric_key': 'order-pipeline-latency',
+     'metric_name': 'Order Pipeline Latency',
+     'event_key': 'order-pipeline-latency',
+     'metric_description': 'Time taken to accept an order, in milliseconds. Climbs steadily under '
+                           'the v2 pipeline before the rollback fires.',
+     'numeric': True,
+     'unit': 'ms',
+     'success_criteria': 'LowerThanBaseline',
+     'tags': ['guarded-release', 'orders', 'togglewear']},
+    {'metric_key': 'order-pipeline-error-rate',
+     'metric_name': 'Order Pipeline Error Rate',
+     'event_key': 'order-pipeline-error-rate',
+     'metric_description': 'Share of orders the pipeline rejected, in percentage points. This is '
+                           'the metric that trips the automatic rollback.',
+     'numeric': True,
+     'unit': 'pp',
+     'success_criteria': 'LowerThanBaseline',
+     'tags': ['guarded-release', 'orders', 'togglewear']},
+    {'metric_key': 'orders-processed',
+     'metric_name': 'Orders Processed',
+     'event_key': 'orders-processed',
+     'metric_description': 'Total orders through the pipeline. Attached to the flag for release '
+                           'monitoring rather than monitored for regressions.',
+     'numeric': True,
+     'unit': 'orders',
+     'success_criteria': 'HigherThanBaseline',
+     'tags': ['guarded-release', 'orders', 'togglewear', 'business']},
+]
 
 # Metric groups — funnels, passed to LDPlatform.create_metric_group(**spec)
 METRIC_GROUPS = []
@@ -130,6 +216,73 @@ FLAGS = [
               ['add_progressive_rollout',
                ['swagRecommendations', 'production'],
                {'timeout': 432000000}]]},
+
+    # ---- Capability 3: guarded releases, healthy and failed ----
+    #
+    # Neither of these has a surface in the storefront, and that is on purpose:
+    # a guarded release is a story about a service degrading, and the evidence
+    # lives in the metric charts rather than on the page. results_generator.py
+    # supplies the traffic. core-demo's guarded releases work the same way.
+    #
+    # The healthy one keeps the default 1/5/10/25/50 ramp at two minutes a
+    # stage, so it walks all the way to 100% in about ten minutes and never
+    # trips. The generator simply makes the new service look better than the
+    # old one.
+    {'flag': {'flag_key': 'inventoryServiceV2',
+              'flag_name': '04 - Live Inventory Service - Guarded Release (Healthy)',
+              'description': 'Replaces nightly stock snapshots with live inventory lookups. The '
+                             'rollout is monitored on lookup success, latency and errors, all of '
+                             'which improve, so it advances to 100% on its own.',
+              'variations': [{'value': True, 'name': 'Use Live Inventory Service'},
+                             {'value': False, 'name': 'Use Nightly Stock Snapshot'}],
+              'tags': ['guarded-release', 'inventory', 'togglewear', 'scenario'],
+              'on_variation': 0},
+     'post': [['attach_metric_to_flag',
+               ['inventoryServiceV2',
+                ['inventory-lookup-success',
+                 'inventory-lookup-latency',
+                 'inventory-lookup-errors',
+                 'inventory-lookups-served']],
+               {}],
+              ['add_guarded_rollout',
+               ['inventoryServiceV2', 'production'],
+               {'metrics': ['inventory-lookup-success',
+                            'inventory-lookup-latency',
+                            'inventory-lookup-errors'],
+                'days': 1}]]},
+
+    # The failed one overrides the ramp with two stages at 10% and 25%, twenty
+    # minutes each. Both halves of that matter: the default ramp opens at 1%,
+    # which starves the treatment of events so the detector cannot reach
+    # significance, and two-minute stages would finish the whole rollout before
+    # the generator's degradation has had time to build. Forty minutes of
+    # headroom against a regression that turns catastrophic around minute
+    # thirteen leaves the rollback plenty of room to fire.
+    {'flag': {'flag_key': 'orderPipelineV2',
+              'flag_name': '05 - Order Pipeline v2 - Guarded Release (Failed)',
+              'description': 'Routes checkout through the rebuilt order pipeline. Error rate and '
+                             'latency climb once traffic arrives and success rate falls away, so '
+                             'LaunchDarkly detects the regression and rolls the flag back without '
+                             'anyone intervening.',
+              'variations': [{'value': True, 'name': 'Use Order Pipeline v2'},
+                             {'value': False, 'name': 'Use Current Order Pipeline'}],
+              'tags': ['guarded-release', 'orders', 'togglewear', 'scenario'],
+              'on_variation': 0},
+     'post': [['attach_metric_to_flag',
+               ['orderPipelineV2',
+                ['order-pipeline-success-rate',
+                 'order-pipeline-latency',
+                 'order-pipeline-error-rate',
+                 'orders-processed']],
+               {}],
+              ['add_guarded_rollout',
+               ['orderPipelineV2', 'production'],
+               {'metrics': ['order-pipeline-success-rate',
+                            'order-pipeline-latency',
+                            'order-pipeline-error-rate'],
+                'rollback': True,
+                'stages': [{'allocation': 10000, 'durationMillis': 1200000},
+                           {'allocation': 25000, 'durationMillis': 1200000}]}]]},
 ]
 
 # Segments — created in every environment listed, with shared rules
