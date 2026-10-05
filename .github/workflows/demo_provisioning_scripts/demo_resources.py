@@ -102,9 +102,16 @@ FLAGS = [
     # engine being eased out rather than switched on, which is the realistic
     # shape for something that costs a call per page view.
     #
-    # add_progressive_rollout steps 1% -> 5% -> 10% -> 25% -> 50% a week at a
-    # time and turns the flag on itself, so no toggle_flag is needed here. It
-    # also starts at 1%, which is the point of the Beta Testers rule above it:
+    # add_progressive_rollout steps 1% -> 5% -> 10% -> 25% -> 50% and turns the
+    # flag on itself, so no toggle_flag is needed here.
+    #
+    # timeout is the duration of each stage and has to be passed: LaunchDarkly
+    # caps a progressive rollout at 30 days in total, and the helper's five
+    # stages at its default of a week each come to 35, which fails the whole
+    # patch with invalid_patch — including the turnFlagOn in the same request,
+    # so the flag silently stays off. Five days gives 25 days in total.
+    #
+    # The rollout starts at 1%, which is the point of the Beta Testers rule:
     # rules are evaluated before the default rule, so testers see the row
     # immediately while everyone else waits for the schedule. Without that rule
     # the feature would be invisible to everyone during a demo.
@@ -122,7 +129,7 @@ FLAGS = [
                {}],
               ['add_progressive_rollout',
                ['swagRecommendations', 'production'],
-               {}]]},
+               {'timeout': 432000000}]]},
 ]
 
 # Segments — created in every environment listed, with shared rules
