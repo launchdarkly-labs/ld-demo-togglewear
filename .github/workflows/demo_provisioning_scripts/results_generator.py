@@ -129,6 +129,14 @@ class AddressValidationError(OrderPipelineError):
     """The shipping address was rejected downstream."""
 
 
+class TaxCalculationError(OrderPipelineError):
+    """No tax rate came back for the destination."""
+
+
+class ShippingRateError(OrderPipelineError):
+    """No carrier returned a rate for the parcel."""
+
+
 class PaymentAuthorisationError(OrderPipelineError):
     """The payment processor refused the authorisation."""
 
@@ -137,19 +145,62 @@ class OrderPersistenceError(OrderPipelineError):
     """The order could not be written to its store."""
 
 
-# Pairing each failure with the step it belongs to means the trace shows where
-# an order died rather than only that it did.
+class OrderConfirmationError(OrderPipelineError):
+    """The order was taken but the confirmation could not be handed off."""
+
+
+# Each failure is raised from its own function, which is what gets eight
+# separate groups into the Errors panel rather than one.  Grouping keys on the
+# stack trace, so raising every failure from a single shared line would
+# collapse them together however many types there were.
+#
+# The messages are deliberately constant.  Interpolating an order id or a SKU
+# would make every instance its own group and the list unreadable, so the
+# per-order detail travels in the span attributes instead.
+
+def _fail_submit():
+    raise OrderPipelineTimeout("Order pipeline timed out after 30s")
+
+
+def _fail_reserve_stock():
+    raise StockReservationError("Could not reserve stock for one or more line items")
+
+
+def _fail_validate_address():
+    raise AddressValidationError("Shipping address failed validation")
+
+
+def _fail_calculate_tax():
+    raise TaxCalculationError("Tax service returned no rate for the destination")
+
+
+def _fail_rate_shipping():
+    raise ShippingRateError("No shipping rates returned for the parcel")
+
+
+def _fail_authorise_payment():
+    raise PaymentAuthorisationError("Payment authorisation returned 500")
+
+
+def _fail_persist():
+    raise OrderPersistenceError("Order write failed: connection pool exhausted")
+
+
+def _fail_confirm():
+    raise OrderConfirmationError("Confirmation handoff rejected by the notifier")
+
+
+# Pairing each failure with its step means the trace shows where an order died
+# rather than only that it did.
 ORDER_FAILURES = [
-    (OrderPipelineTimeout, "order-pipeline.submit",
-     "Order pipeline timed out after 30s"),
-    (StockReservationError, "order-pipeline.reserve-stock",
-     "Could not reserve stock for one or more line items"),
-    (AddressValidationError, "order-pipeline.validate-address",
-     "Shipping address failed validation"),
-    (PaymentAuthorisationError, "order-pipeline.authorise-payment",
-     "Payment authorisation returned 500"),
-    (OrderPersistenceError, "order-pipeline.persist",
-     "Order write failed: connection pool exhausted"),
+    ("order-pipeline.submit", _fail_submit),
+    ("order-pipeline.reserve-stock", _fail_reserve_stock),
+    ("order-pipeline.validate-address", _fail_validate_address),
+    ("order-pipeline.calculate-tax", _fail_calculate_tax),
+    ("order-pipeline.rate-shipping", _fail_rate_shipping),
+    ("order-pipeline.authorise-payment", _fail_authorise_payment),
+    ("order-pipeline.persist", _fail_persist),
+    ("order-pipeline.confirm", _fail_confirm),
 ]
 
 
@@ -186,7 +237,7 @@ def report_order_failure(order_id, ctx, latency, version):
     real stack trace, and it is raised inside a child span named after the
     step that failed, so the trace shows where in the pipeline the order died.
     """
-    error_type, step, message = random.choice(ORDER_FAILURES)
+    step, raise_failure = random.choice(ORDER_FAILURES)
     attributes = {
         "order.id": order_id,
         "shopper.key": ctx.key,
@@ -198,10 +249,10 @@ def report_order_failure(order_id, ctx, latency, version):
 
     try:
         with observe_span(step, attributes):
-            raise error_type(message)
+            raise_failure()
     except OrderPipelineError as error:
         observe_error(error, attributes)
-        observe_log(f"{order_id} failed at {step}: {message}",
+        observe_log(f"{order_id} failed at {step}: {error}",
                     logging.ERROR, attributes)
 
 
