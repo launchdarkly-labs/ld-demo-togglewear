@@ -83,16 +83,15 @@ ORDER_ERROR_KEY = "order-pipeline-error-rate"
 ORDERS_PROCESSED_KEY = "orders-processed"
 ORDER_SERVICE_NAME = "togglewear-order-pipeline"
 
-# Only a share of failed orders is reported as an exception.  Every failure is
-# already counted by the error-rate metric; these exist to give the Errors
-# panel a believable stream with a visible upward trend.  At the peak of the
-# collapse two thirds of orders fail, so reporting all of them would mean
-# thousands of near-identical records for no extra narrative.
-ERROR_SAMPLE_RATE = 0.3
+# Every failure is reported.  An earlier version sampled 30% of them, on the
+# assumption that the run would be long enough for that to still be hundreds
+# of records; in practice the rollout is rolled back within minutes of the
+# collapse starting, so sampling left the Errors panel with single digits and
+# only half the failure modes represented at all.
 
-# Healthy orders are logged far more sparingly still.  The generator places
-# roughly eight orders a second for thirteen minutes, and logging all of them
-# would bury the failures that the Logs panel is there to show.
+# Healthy orders are logged sparingly, though.  The generator places roughly
+# eight orders a second, and logging all of them would bury the failures that
+# the Logs panel is there to show.
 SUCCESS_LOG_SAMPLE_RATE = 0.05
 
 logging.basicConfig(
@@ -233,9 +232,15 @@ def observe_log(message, level, attributes=None):
 def report_order_failure(order_id, ctx, latency, version):
     """Raise, catch and report one order failure.
 
-    The exception is raised rather than constructed so the Errors panel gets a
-    real stack trace, and it is raised inside a child span named after the
-    step that failed, so the trace shows where in the pipeline the order died.
+    The exception is raised rather than constructed so that the Errors panel
+    gets a real stack trace.
+
+    It is recorded against the caller's span rather than a child span of its
+    own.  A child named for the failing step read better in the trace, but the
+    flag evaluation lives on the parent span, and errors appear to be
+    attributed to a flag per span rather than per trace — which left these
+    showing under Observability while flag 05's own Errors tab stayed empty.
+    The step still travels as an attribute.
     """
     step, raise_failure = random.choice(ORDER_FAILURES)
     attributes = {
@@ -248,8 +253,7 @@ def report_order_failure(order_id, ctx, latency, version):
     }
 
     try:
-        with observe_span(step, attributes):
-            raise_failure()
+        raise_failure()
     except OrderPipelineError as error:
         observe_error(error, attributes)
         observe_log(f"{order_id} failed at {step}: {error}",
@@ -361,7 +365,10 @@ def evaluate_flags_by_tag(client, tag, evaluations=500):
             except Exception as e:
                 logging.error(f"Error evaluating {flag_key}: {e}")
                 break
-    client.flush()
+        # Flush per flag, not once at the end. Five flags at 500 evaluations
+        # overflows the 2000-event queue before anything is sent, and the
+        # dropped events come out of the warm-up the flag list depends on.
+        client.flush()
     logging.info("Flag evaluation complete.")
 
 
@@ -456,10 +463,19 @@ def order_pipeline_failed_generator(client, stop_event):
         without any single visible rhythm
       * per-event gaussian noise
 
-    Two phases. For the first nine minutes the regression is real but mild —
-    enough to be visible, not enough to be conclusive. Then it turns sharply
-    over the following four, which is what takes the error rate past the point
-    the guardian will tolerate.
+    Two phases. For the first six minutes v2 draws from the same distributions
+    as the control, so there is genuinely nothing to find. Then it collapses.
+
+    That first phase used to be a mild regression instead — 11% errors against
+    the control's 4%, latency 148ms against 110ms — on the theory that it was
+    too small to be conclusive. It was not. LaunchDarkly rolled the flag back
+    61 seconds in, on a sample of 36 users, because a 35% latency increase is
+    so far outside the noise that sequential testing needs almost no data to
+    be certain of it. Nothing about the story got a chance to happen.
+    Sustained differences cannot merely be small, either: a small true gap
+    still reaches significance once enough events pile up, and six minutes is
+    plenty. So the phase has to be noise, and all the divergence has to live
+    in the collapse.
 
     Success and error rates are tracked as 100 or 0 against numeric metrics
     rather than as conversions, so each chart bucket averages to a smooth mean.
@@ -475,8 +491,9 @@ def order_pipeline_failed_generator(client, stop_event):
 
     logging.info("Order Pipeline v2 generator running.")
 
-    SUSTAIN_END = 540.0       # mild regression for the first nine minutes
-    CATASTROPHE_END = 780.0   # then four minutes of collapse
+    SUSTAIN_END = 360.0       # six minutes indistinguishable from control
+    CATASTROPHE_END = 540.0   # then three minutes of collapse, though the
+                              # rollback usually lands in the first one
 
     status_check_counter = 0
     iteration = 0
@@ -528,30 +545,49 @@ def order_pipeline_failed_generator(client, stop_event):
                                + 1.0 * math.sin(elapsed / 6))
 
                     if elapsed < SUSTAIN_END:
-                        progress = elapsed / SUSTAIN_END
+                        # Centred on exactly the same numbers as the control
+                        # arm below. v2 keeps its own oscillators and its own
+                        # walk, so the two lines are not the identical trace,
+                        # but the means match — and the mean is all the
+                        # regression detector compares.
+                        error_pct = 4 + (osc_err * 0.6) + (walk_test_err * 0.3) + random.uniform(-1.5, 1.5)
+                        error_pct = max(1, min(9, error_pct))
 
-                        error_pct = 11 + (5 * progress) + osc_err + walk_test_err + random.uniform(-1.2, 1.2)
-                        error_pct = max(6, min(22, error_pct))
+                        success_pct = 93 + (osc_suc * 0.5) + (walk_test_suc * 0.3) + random.uniform(-1.2, 1.2)
+                        success_pct = max(88, min(97, success_pct))
 
-                        success_pct = 84 - (5 * progress) + osc_suc + walk_test_suc + random.uniform(-1.2, 1.2)
-                        success_pct = max(74, min(90, success_pct))
-
-                        latency = int(random.gauss(148 + (25 * progress) + osc_lat + walk_test_lat, 26))
-                        latency = max(90, min(280, latency))
+                        # The oscillator and walk are scaled down to match the
+                        # control arm's spread exactly, which matters more than
+                        # it looks. Both arms clamp to 55-200 around a mean of
+                        # 110, so the lower bound is nearer than the upper and
+                        # clamping lifts the mean; a wider distribution gets
+                        # clipped more often and ends up measurably slower
+                        # while looking like it was centred the same. That
+                        # alone was worth a couple of milliseconds.
+                        latency = int(random.gauss(
+                            110 + (osc_lat * 0.9) + (walk_test_lat * 0.8), 25))
+                        latency = max(55, min(200, latency))
                     else:
-                        # Ease-in rather than linear, so the collapse accelerates.
+                        # Steep at first and flattening after, so that the
+                        # line has visibly jumped by the time the detector
+                        # reacts. The detector is sensitive — last time it
+                        # caught a 44ms gap — so a collapse that accelerated
+                        # slowly would be rolled back while the chart still
+                        # looked almost flat, which is the opposite of the
+                        # point. curve is 0 at the handover, so the numbers
+                        # continue from the healthy phase without a step.
                         cat_progress = min((elapsed - SUSTAIN_END) / (CATASTROPHE_END - SUSTAIN_END), 1.0)
                         curve = 1.0 - ((1.0 - cat_progress) ** 2.2)
 
-                        error_pct = 18 + (48 * curve) + 2 * math.sin(elapsed / 20) + random.uniform(-1.5, 1.5)
-                        error_pct = max(16, min(80, error_pct))
+                        error_pct = 4 + (62 * curve) + 2 * math.sin(elapsed / 20) + random.uniform(-1.5, 1.5)
+                        error_pct = max(1, min(80, error_pct))
 
-                        success_pct = 78 - (48 * curve) + 1.5 * math.sin(elapsed / 22) + random.uniform(-1.5, 1.5)
-                        success_pct = max(18, min(82, success_pct))
+                        success_pct = 93 - (62 * curve) + 1.5 * math.sin(elapsed / 22) + random.uniform(-1.5, 1.5)
+                        success_pct = max(18, min(97, success_pct))
 
                         latency = int(random.gauss(
-                            175 + (340 * curve) + osc_lat * 0.5 + walk_test_lat, 40 + 30 * curve))
-                        latency = max(120, min(750, latency))
+                            110 + (410 * curve) + (osc_lat * 0.5) + walk_test_lat, 25 + 35 * curve))
+                        latency = max(55, min(750, latency))
 
                     error_val = 100 if random.random() * 100 < error_pct else 0
                     success_val = 100 if random.random() * 100 < success_pct else 0
@@ -562,8 +598,7 @@ def order_pipeline_failed_generator(client, stop_event):
                     client.track(ORDERS_PROCESSED_KEY, ctx, None, 1)
 
                     if error_val == 100:
-                        if random.random() < ERROR_SAMPLE_RATE:
-                            report_order_failure(order_id, ctx, latency, "v2")
+                        report_order_failure(order_id, ctx, latency, "v2")
                     else:
                         report_order_success(order_id, ctx, latency, "v2")
                 else:
@@ -592,8 +627,7 @@ def order_pipeline_failed_generator(client, stop_event):
                     # baseline to contrast v2's spike against rather than
                     # making it look as though only one pipeline is monitored.
                     if ctrl_error_val == 100:
-                        if random.random() < ERROR_SAMPLE_RATE:
-                            report_order_failure(order_id, ctx, ctrl_latency, "v1")
+                        report_order_failure(order_id, ctx, ctrl_latency, "v1")
                     else:
                         report_order_success(order_id, ctx, ctrl_latency, "v1")
 
@@ -661,11 +695,11 @@ def generate_results(project_key, api_key):
 
     logging.info("Guarded release generators running.")
     logging.info("  04 Live Inventory Service should reach 100% in about 10 minutes.")
-    logging.info("  05 Order Pipeline v2 should be rolled back around minute 11 to 13.")
+    logging.info("  05 Order Pipeline v2 should be rolled back around minute 6 to 8.")
 
-    # Safety cap. The failed scenario needs roughly thirteen minutes to reach
-    # the point of being rolled back, so this has to comfortably exceed that or
-    # provisioning would abandon the thread mid-story.
+    # Safety cap. The healthy scenario is the slower of the two at about ten
+    # minutes, so this has to comfortably exceed that or provisioning would
+    # abandon the thread mid-story.
     MAX_GENERATOR_WAIT = 1200
 
     inventory_thread.join(timeout=MAX_GENERATOR_WAIT)
