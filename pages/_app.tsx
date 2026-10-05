@@ -3,6 +3,7 @@ import { Sora, Geist } from "next/font/google";
 import { CartProvider } from "@/components/cart/CartProvider";
 import { OrderProvider } from "@/components/checkout/OrderProvider";
 import { ShopperProvider } from "@/components/ui/ShopperProvider";
+import LaunchDarklyProvider from "@/components/ui/LaunchDarklyProvider";
 import "@/styles/globals.css";
 
 // next/font is only allowed in _app, not _document, so the CSS variable the
@@ -29,11 +30,15 @@ export default function App({ Component, pageProps }: AppProps) {
           outlive a page change, so they are owned above the page rather than
           by any one of them. */}
       <ShopperProvider>
-        <CartProvider>
-          <OrderProvider>
-            <Component {...pageProps} />
-          </OrderProvider>
-        </CartProvider>
+        {/* Inside ShopperProvider, because the LaunchDarkly context is built
+            from the shopper's role — that is what the segments target. */}
+        <LaunchDarklyProvider>
+          <CartProvider>
+            <OrderProvider>
+              <Component {...pageProps} />
+            </OrderProvider>
+          </CartProvider>
+        </LaunchDarklyProvider>
       </ShopperProvider>
     </div>
   );
