@@ -35,7 +35,6 @@ from demo_resources import (
     SEGMENTS,
     CONTEXT_KINDS,
     EXPERIMENTS,
-    PIPELINE_FLAGS,
 )
 
 
@@ -61,36 +60,22 @@ class DemoBuilder:
         self.ldproject = LDPlatform.LDPlatform(api_key, api_key_user, email)
         self.ldproject.project_key = project_key
 
+    # Trimmed to the generic, table-driven steps while ToggleWear's resources
+    # are rebuilt one capability at a time.  Everything taken out either names
+    # a ToggleBank flag directly — update_add_userid_to_flags, create_ai_config,
+    # enable_csa_shadow_ai_feature_flags, project_settings and
+    # setup_template_environment all do — or depends on experiments that no
+    # longer exist.  Each one returns alongside the capability that needs it.
+    #
+    # LDGeneratorsRunner is out for the same reason: it generates traffic
+    # against flags, and there are none yet.  It comes back with results
+    # generation.
     def build(self):
         self.create_project()
         self.create_segments()
         self.create_metrics()
         self.create_metric_groups()
         self.create_flags()
-        self.update_add_userid_to_flags()
-        self.create_ai_config()
-        self.enable_csa_shadow_ai_feature_flags()
-        self.create_and_run_experiments() 
-        self.create_and_run_layer()
-        self.create_and_run_holdout()
-        self.project_settings()
-        self.setup_template_environment()
-        
-        # Prepare environment variables for the subprocess
-        env = os.environ.copy()
-        env["LD_PROJECT_KEY"] = self.project_key
-        env["LD_API_KEY"] = self.api_key
-        env["LD_SDK_KEY"] = self.sdk_key
-        env["LD_CLIENT_KEY"] = self.client_id
-        # Add any other required variables here
-        
-        # Run LDGeneratorsRunner.py in parallel as a subprocess
-        proc = subprocess.Popen([
-            "python3", os.path.join(os.path.dirname(__file__), "LDGeneratorsRunner.py")
-        ], env=env)
-        
-        # self.setup_release_pipeline()  # Release Assistant removed (no longer supported)
-        proc.wait()
 
     def create_project(self):
         if self.ldproject.project_exists(self.project_key):
@@ -3795,35 +3780,6 @@ class DemoBuilder:
     def segment_ai_fallback(self):
         res = self.ldproject.create_context("ai", for_experiment=False)
         res = self.ldproject.create_ai_fallback_segment("production")
-
-    def setup_release_pipeline(self):
-        print("Creating release pipeline", end="...")
-        self.rp_toggle_bank_release_pipeline()
-        print("Done")
-
-    # Release pipeline flag rollout (definitions live in the PIPELINE_FLAGS table above)
-    def rp_toggle_bank_release_pipeline(self):
-        res = self.ldproject.create_release_pipeline(
-            "togglebank-v2-pipeline", "ToggleBank v2.0 Release"
-        )
-        if res.status_code not in (200, 201):
-            print(f"Skipping release pipeline steps (creation returned {res.status_code})")
-            return
-        self.phase_ids = self.ldproject.get_pipeline_phase_ids("togglebank-v2-pipeline")
-        if not self.phase_ids:
-            print("Skipping release pipeline steps (could not retrieve phase IDs)")
-            return
-        for spec in PIPELINE_FLAGS:
-            if "custom" in spec:
-                getattr(self, spec["custom"])()
-                continue
-            self.ldproject.add_pipeline_flag(spec["flag_key"], spec["pipeline_key"])
-            if spec.get("metrics"):
-                self.ldproject.attach_metric_to_flag(spec["flag_key"], spec["metrics"])
-            for status, phase_name, kwargs in spec.get("advance_phases", []):
-                self.ldproject.advance_flag_phase(
-                    spec["flag_key"], status, self.phase_ids[phase_name], **kwargs
-                )
 
     def setup_template_environment(self):
         
