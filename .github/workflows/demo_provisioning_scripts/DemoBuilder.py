@@ -22,6 +22,7 @@ import uuid
 import random
 from dotenv import load_dotenv
 import subprocess
+import sys
 # Load environment variables from .env file
 load_dotenv()
 
@@ -90,7 +91,11 @@ class DemoBuilder:
         env["LD_CLIENT_KEY"] = self.client_id
 
         proc = subprocess.Popen(
-            ["python3", os.path.join(os.path.dirname(__file__), "LDGeneratorsRunner.py")],
+            # sys.executable rather than "python3": the observability plugin
+            # lives in whichever interpreter installed requirements.txt, and a
+            # bare "python3" would resolve to the system one and silently drop
+            # the telemetry.
+            [sys.executable, os.path.join(os.path.dirname(__file__), "LDGeneratorsRunner.py")],
             env=env,
         )
         proc.wait()
