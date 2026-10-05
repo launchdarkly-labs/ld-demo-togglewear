@@ -95,6 +95,34 @@ FLAGS = [
               ['toggle_flag',
                ['giftUnlockTeaser', 'on', 'production'],
                {}]]},
+
+    # ---- Capability 2: progressive rollout ----
+    #
+    # The "Recommended for you" row on a product page — a new recommendation
+    # engine being eased out rather than switched on, which is the realistic
+    # shape for something that costs a call per page view.
+    #
+    # add_progressive_rollout steps 1% -> 5% -> 10% -> 25% -> 50% a week at a
+    # time and turns the flag on itself, so no toggle_flag is needed here. It
+    # also starts at 1%, which is the point of the Beta Testers rule above it:
+    # rules are evaluated before the default rule, so testers see the row
+    # immediately while everyone else waits for the schedule. Without that rule
+    # the feature would be invisible to everyone during a demo.
+    {'flag': {'flag_key': 'swagRecommendations',
+              'flag_name': '03 - Swag Recommendations - Progressive Rollout',
+              'description': 'Shows the "Recommended for you" row on the product page. Beta '
+                             'testers get it straight away; everyone else arrives through a '
+                             'five-stage progressive rollout.',
+              'variations': [{'value': True, 'name': 'Show Swag Recommendations'},
+                             {'value': False, 'name': 'Hide Swag Recommendations'}],
+              'tags': ['progressive-rollout', 'recommendations', 'togglewear'],
+              'on_variation': 0},
+     'post': [['add_segment_to_flag',
+               ['swagRecommendations', 'beta-testers', 'production'],
+               {}],
+              ['add_progressive_rollout',
+               ['swagRecommendations', 'production'],
+               {}]]},
 ]
 
 # Segments — created in every environment listed, with shared rules
