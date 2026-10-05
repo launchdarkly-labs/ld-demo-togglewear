@@ -251,13 +251,13 @@ FLAGS = [
                             'inventory-lookup-errors'],
                 'days': 1}]]},
 
-    # The failed one overrides the ramp with two stages at 10% and 25%, twenty
+    # The failed one overrides the ramp with two stages at 25% and 50%, twenty
     # minutes each. Both halves of that matter: the default ramp opens at 1%,
     # which starves the treatment of events so the detector cannot reach
     # significance, and two-minute stages would finish the whole rollout before
     # the generator's degradation has had time to build. Forty minutes of
-    # headroom against a regression that turns catastrophic around minute
-    # thirteen leaves the rollback plenty of room to fire.
+    # headroom against a regression that turns catastrophic around minute six
+    # leaves the rollback plenty of room to fire.
     {'flag': {'flag_key': 'orderPipelineV2',
               'flag_name': '05 - Order Pipeline v2 - Guarded Release (Failed)',
               'description': 'Routes checkout through the rebuilt order pipeline. Error rate and '
@@ -281,8 +281,13 @@ FLAGS = [
                             'order-pipeline-latency',
                             'order-pipeline-error-rate'],
                 'rollback': True,
-                'stages': [{'allocation': 10000, 'durationMillis': 1200000},
-                           {'allocation': 25000, 'durationMillis': 1200000}]}]]},
+                # 25% to open, not the usual 1% or even 10%. At 10% the
+                # treatment arm had 36 users by the time the regression was
+                # caught, which is too few to draw anything but a wide, jagged
+                # band — the chart has to look like a measurement, not a
+                # sketch, for the rollback to be convincing.
+                'stages': [{'allocation': 25000, 'durationMillis': 1200000},
+                           {'allocation': 50000, 'durationMillis': 1200000}]}]]},
 ]
 
 # Segments — created in every environment listed, with shared rules
