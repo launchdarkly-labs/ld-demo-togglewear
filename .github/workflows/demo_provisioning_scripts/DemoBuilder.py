@@ -80,10 +80,10 @@ class DemoBuilder:
     #
     # Has to run after create_flags: both generators poll for their flag's
     # rollout and give up if it never turns up.  Blocks while they work, which
-    # is most of a quarter of an hour — almost all of it spent waiting for flag
-    # 05's regression to grow large enough that LaunchDarkly rolls it back.
+    # is around ten minutes — flag 05 is rolled back after six to eight, and
+    # flag 04 takes the full ten to walk its rollout up to 100%.
     def generate_results(self):
-        print("Generating demo results — allow around 13 minutes", end="...\n")
+        print("Generating demo results — allow around 10 minutes", end="...\n")
         env = os.environ.copy()
         env["LD_PROJECT_KEY"] = self.project_key
         env["LD_API_KEY"] = self.api_key
