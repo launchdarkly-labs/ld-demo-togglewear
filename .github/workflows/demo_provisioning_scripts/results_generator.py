@@ -346,11 +346,15 @@ def generate_shopper_context():
     return builder.build()
 
 
-def evaluate_flags_by_tag(client, tag, evaluations=500):
+def evaluate_flags_by_tag(client, tag, evaluations=200):
     """Put evaluation traffic through every flag carrying a tag.
 
     Without this the flag list shows zero evaluations and looks untouched,
     which undersells a demo project more than it sounds like it would.
+
+    200 each rather than 500: five flags at 500 produced events faster than
+    the SDK could ship them even with a flush per flag, and the dropped ones
+    came straight out of the warm-up this exists to provide.
     """
     flag_keys = get_all_flags_by_tag(tag)
     if not flag_keys:
@@ -463,8 +467,10 @@ def order_pipeline_failed_generator(client, stop_event):
         without any single visible rhythm
       * per-event gaussian noise
 
-    Two phases. For the first six minutes v2 draws from the same distributions
-    as the control, so there is genuinely nothing to find. Then it collapses.
+    Two phases. For the first four minutes v2 draws from the same distributions
+    as the control, so there is genuinely nothing to find. Then orders start
+    failing — without slowing down, so that the error rate is what ends the
+    rollout rather than latency.
 
     That first phase used to be a mild regression instead — 11% errors against
     the control's 4%, latency 148ms against 110ms — on the theory that it was
@@ -491,9 +497,12 @@ def order_pipeline_failed_generator(client, stop_event):
 
     logging.info("Order Pipeline v2 generator running.")
 
-    SUSTAIN_END = 360.0       # six minutes indistinguishable from control
-    CATASTROPHE_END = 540.0   # then three minutes of collapse, though the
-                              # rollback usually lands in the first one
+    # Four minutes of healthy rather than six. The detector judges the
+    # cumulative average over the whole rollout, so every extra healthy minute
+    # dilutes the collapse and pushes the rollback further out. Four is still
+    # plainly a flat, uneventful stretch on the chart.
+    SUSTAIN_END = 240.0
+    CATASTROPHE_END = 480.0
 
     status_check_counter = 0
     iteration = 0
@@ -505,7 +514,9 @@ def order_pipeline_failed_generator(client, stop_event):
     walk_test_suc = 0.0
 
     while True:
-        if status_check_counter >= 80:
+        # Every 200 iterations is roughly every ten seconds at the loop's pace,
+        # which keeps the polling on the flag to a sane rate.
+        if status_check_counter >= 200:
             details = get_flag_details(ORDER_FLAG_KEY)
             if not details or not is_measured_rollout(details):
                 logging.info("Order Pipeline v2 rollout is over — rolled back or completed.")
@@ -568,26 +579,40 @@ def order_pipeline_failed_generator(client, stop_event):
                             110 + (osc_lat * 0.9) + (walk_test_lat * 0.8), 25))
                         latency = max(55, min(200, latency))
                     else:
-                        # Steep at first and flattening after, so that the
-                        # line has visibly jumped by the time the detector
-                        # reacts. The detector is sensitive — last time it
-                        # caught a 44ms gap — so a collapse that accelerated
-                        # slowly would be rolled back while the chart still
-                        # looked almost flat, which is the opposite of the
-                        # point. curve is 0 at the handover, so the numbers
-                        # continue from the healthy phase without a step.
+                        # Orders fail, they do not slow down. The pipeline is
+                        # rejecting work — declined authorisations, validation
+                        # failures, 500s — and those come back about as fast as
+                        # a success would, so latency barely moves while the
+                        # error rate goes through the roof.
+                        #
+                        # That is deliberate, and it is what decides which
+                        # metric triggers the rollback. Latency is the most
+                        # sensitive of the three; last time it fired on a
+                        # cumulative gap of 13.6ms and pulled the flag 67
+                        # seconds into the collapse, long before the error rate
+                        # had anything to say. Keeping latency nearly flat lets
+                        # the rollout survive deep enough for the error rate to
+                        # be the thing that ends it, which is both a better
+                        # story and where most of the Errors panel comes from.
+                        #
+                        # Steep at first and flattening after, so the cumulative
+                        # average moves quickly. curve is 0 at the handover, so
+                        # the numbers continue from the healthy phase with no
+                        # step, and cat_progress clamps at 1 so the worst case
+                        # is sustained rather than falling off a cliff if the
+                        # rollback takes longer than the window.
                         cat_progress = min((elapsed - SUSTAIN_END) / (CATASTROPHE_END - SUSTAIN_END), 1.0)
                         curve = 1.0 - ((1.0 - cat_progress) ** 2.2)
 
-                        error_pct = 4 + (62 * curve) + 2 * math.sin(elapsed / 20) + random.uniform(-1.5, 1.5)
+                        error_pct = 4 + (61 * curve) + 2 * math.sin(elapsed / 20) + random.uniform(-1.5, 1.5)
                         error_pct = max(1, min(80, error_pct))
 
-                        success_pct = 93 - (62 * curve) + 1.5 * math.sin(elapsed / 22) + random.uniform(-1.5, 1.5)
+                        success_pct = 93 - (68 * curve) + 1.5 * math.sin(elapsed / 22) + random.uniform(-1.5, 1.5)
                         success_pct = max(18, min(97, success_pct))
 
                         latency = int(random.gauss(
-                            110 + (410 * curve) + (osc_lat * 0.5) + walk_test_lat, 25 + 35 * curve))
-                        latency = max(55, min(750, latency))
+                            110 + (12 * curve) + (osc_lat * 0.9) + (walk_test_lat * 0.8), 25))
+                        latency = max(55, min(260, latency))
 
                     error_val = 100 if random.random() * 100 < error_pct else 0
                     success_val = 100 if random.random() * 100 < success_pct else 0
@@ -633,7 +658,13 @@ def order_pipeline_failed_generator(client, stop_event):
 
             iteration += 1
             status_check_counter += 1
-            time.sleep(0.12)
+            # Twenty orders a second. The Errors panel is populated as a
+            # by-product of this loop, so throughput is what decides how much
+            # is in it; at the previous 0.12s the whole run produced 157
+            # errors, which left some of the eight failure modes in single
+            # figures. This is still only ~80 metric events a second against a
+            # queue of 2000 flushed every second, so nothing is dropped.
+            time.sleep(0.05)
         except Exception as e:
             logging.error(f"Error generating order pipeline metrics: {e}")
             continue
