@@ -2111,7 +2111,13 @@ class LDPlatform:
         rollback=True,
         days=1,
         metrics=[],
+        stages=None,
     ):
+        # stages overrides the default 1/5/10/25/50 ramp. A failing-rollout
+        # demo needs it: at 1% allocation the treatment gets too few events for
+        # the regression detector to reach significance before the ramp is over,
+        # which is why core-demo had to hand-roll that flag instead of calling
+        # this. Pass allocations in thousandths with durationMillis per stage.
         # Since this is likely going to be added immediately after
         # creating a flag, we're going to sleep for 2 seconds. Otherwise
         # adding the rollout doesn't consistently take.
@@ -2155,7 +2161,7 @@ class LDPlatform:
                 self._build_start_automated_release_instruction(
                     control_var,
                     test_var,
-                    self._default_automated_release_stages(stagesWindow),
+                    stages or self._default_automated_release_stages(stagesWindow),
                     release_kind="guarded",
                     metrics=metrics,
                     rollback=rollback,
