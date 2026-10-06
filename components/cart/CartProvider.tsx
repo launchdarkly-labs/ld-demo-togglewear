@@ -18,6 +18,9 @@ const SEED: CartLine[] = [
 ];
 
 const STORAGE_KEY = "togglewear.cart";
+// Its own key rather than folded into the cart's, so a cart already in
+// someone's browser still parses.
+const PROMO_KEY = "togglewear.promo";
 
 type CartApi = {
   lines: CartLine[];
@@ -32,12 +35,23 @@ type CartApi = {
   // applies before anything has been written to storage. reset puts it back,
   // so the whole flow can be demoed twice in a row.
   reset: () => void;
+
+  // The applied promo code, or null. It belongs to the cart rather than to
+  // the summary panel because the cart and the checkout both price it, and
+  // because an order placed with a code should keep it.
+  //
+  // Stored, not judged: whether a code is any good is validatePromo's
+  // business, and the summary field asks before calling this.
+  promo: string | null;
+  applyPromo: (code: string) => void;
+  removePromo: () => void;
 };
 
 const CartContext = createContext<CartApi | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>(SEED);
+  const [promo, setPromo] = useState<string | null>(null);
 
   // Every page is prerendered, so localStorage can only be read after mount —
   // reading it during render would make the server and client markup disagree.
@@ -49,6 +63,24 @@ export function CartProvider({ children }: { children: ReactNode }) {
       // A corrupt or unavailable store just leaves the seed in place.
     }
   }, []);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(PROMO_KEY);
+      if (saved) setPromo(saved);
+    } catch {
+      // Same as above: an unreadable store just means no code applied.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (promo) window.localStorage.setItem(PROMO_KEY, promo);
+      else window.localStorage.removeItem(PROMO_KEY);
+    } catch {
+      // The code still applies for this session.
+    }
+  }, [promo]);
 
   useEffect(() => {
     try {
@@ -95,14 +127,40 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [remove]
   );
 
-  const clear = useCallback(() => setLines([]), []);
-  const reset = useCallback(() => setLines(SEED), []);
+  const applyPromo = useCallback((code: string) => {
+    setPromo(code.trim().toUpperCase());
+  }, []);
+
+  const removePromo = useCallback(() => setPromo(null), []);
+
+  // Both drop the code along with the lines: a promo outliving the cart it
+  // was applied to would reappear on the next order unannounced.
+  const clear = useCallback(() => {
+    setLines([]);
+    setPromo(null);
+  }, []);
+
+  const reset = useCallback(() => {
+    setLines(SEED);
+    setPromo(null);
+  }, []);
 
   const count = lines.reduce((sum, l) => sum + l.quantity, 0);
 
   return (
     <CartContext.Provider
-      value={{ lines, count, add, setQuantity, remove, clear, reset }}
+      value={{
+        lines,
+        count,
+        add,
+        setQuantity,
+        remove,
+        clear,
+        reset,
+        promo,
+        applyPromo,
+        removePromo,
+      }}
     >
       {children}
     </CartContext.Provider>

@@ -374,6 +374,18 @@ export type PricingVariant = "default" | "loyaltyGold";
 // is a rate rather than eight separate member prices.
 export const LOYALTY_DISCOUNT = 0.15;
 
+// The new customer's code, which the announcement bar and the assistant both
+// promise. Shallower than the member rate on purpose: at the same 15% a Gold
+// membership would buy nothing you cannot get by typing a word, and the two
+// personas would land on an identical total. At 10 against 15 you can switch
+// persona mid-demo and point at two different numbers.
+//
+// Both strings that advertise this are built from these two values rather
+// than written out, because a promise of 15% next to a 10% discount is the
+// kind of drift nobody notices until a prospect does.
+export const WELCOME_CODE = "WELCOME";
+export const WELCOME_DISCOUNT = 0.1;
+
 export function memberPriceUsd(priceUsd: number) {
   return Math.round(priceUsd * (1 - LOYALTY_DISCOUNT));
 }

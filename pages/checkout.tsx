@@ -32,7 +32,7 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { persona, variant } = useShopper();
 
-  const { lines, clear } = useCart();
+  const { lines, promo, clear } = useCart();
   const { place } = useOrder();
   const [assessing, setAssessing] = useState(false);
   const [assessment, setAssessment] = useState<FraudAssessment | null>(null);
@@ -54,7 +54,8 @@ export default function CheckoutPage() {
     };
 
     const resolved = resolveLines(lines);
-    const totals = cartTotals(resolved, variant);
+    // Priced with the code so the receipt keeps the discount the cart showed.
+    const totals = cartTotals(resolved, variant, promo);
     const verdict = assessOrder({
       zip: shipTo.zip,
       total: totals.total,

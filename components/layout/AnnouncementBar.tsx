@@ -1,3 +1,5 @@
+import { WELCOME_CODE, WELCOME_DISCOUNT } from "@/lib/products";
+
 // Figma component set "announcement-bar" (67:4838), one variant per persona.
 // Jen's variant is spelled "Cart abondon"; the key here is corrected.
 export type AnnouncementPersona =
@@ -22,7 +24,11 @@ const VARIANTS: Record<AnnouncementPersona, Variant> = {
   },
   newCustomer: {
     surface: "bg-base-cyan text-grays-ld-black",
-    message: "New customer, new perks: 15% off your first order. Use code WELCOME",
+    // Built from the constants rather than written out, so the bar cannot
+    // promise a rate the cart does not give.
+    message: `New customer, new perks: ${Math.round(
+      WELCOME_DISCOUNT * 100,
+    )}% off your first order. Use code ${WELCOME_CODE}`,
   },
   loyaltyGold: {
     surface: "bg-base-blue text-grays-white",

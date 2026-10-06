@@ -45,7 +45,6 @@ export default function OrderConfirmationPage() {
               <div className="flex flex-col gap-6 xl:w-[420px] xl:shrink-0">
                 <PaymentSummary
                   totals={order.totals}
-                  variant={order.variant}
                   paymentLabel={order.paymentLabel}
                   riskScore={order.riskScore}
                 />

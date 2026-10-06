@@ -20,9 +20,9 @@ export default function CheckoutSummary({
   assessment: FraudAssessment | null;
   orderRef: string;
 }) {
-  const { lines } = useCart();
+  const { lines, promo } = useCart();
   const resolved = resolveLines(lines);
-  const totals = cartTotals(resolved, variant);
+  const totals = cartTotals(resolved, variant, promo);
 
   return (
     <section className="flex flex-col gap-6 rounded-[2px] border border-grays-hairline bg-grays-white p-8">
@@ -64,7 +64,7 @@ export default function CheckoutSummary({
 
       <div className="h-px w-full bg-grays-hairline" />
 
-      <SummaryLines totals={totals} variant={variant} />
+      <SummaryLines totals={totals} />
 
       {/* Hidden once a decision is in, so the same order cannot be placed
           twice by clicking through the result panel. */}

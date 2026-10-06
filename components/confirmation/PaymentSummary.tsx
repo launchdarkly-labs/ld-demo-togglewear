@@ -1,18 +1,15 @@
 import SummaryLines from "@/components/cart/SummaryLines";
 import type { CartTotals } from "@/lib/cart";
-import type { PricingVariant } from "@/lib/products";
 
 // Figma "summary-panel" (75:1600). The same money rows as the cart and
 // checkout, with Jen's payment details block underneath and no actions —
 // there is nothing left to change by this point.
 export default function PaymentSummary({
   totals,
-  variant,
   paymentLabel,
   riskScore,
 }: {
   totals: CartTotals;
-  variant: PricingVariant;
   paymentLabel: string;
   riskScore: number;
 }) {
@@ -22,7 +19,7 @@ export default function PaymentSummary({
         Payment Summary
       </h2>
 
-      <SummaryLines totals={totals} variant={variant} totalLabel="Total Paid" />
+      <SummaryLines totals={totals} totalLabel="Total Paid" />
 
       <div className="h-px w-full bg-grays-hairline" />
 

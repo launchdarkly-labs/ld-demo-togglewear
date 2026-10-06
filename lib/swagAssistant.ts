@@ -1,4 +1,9 @@
-import { BEST_SELLERS, type Product } from "@/lib/products";
+import {
+  BEST_SELLERS,
+  WELCOME_CODE,
+  WELCOME_DISCOUNT,
+  type Product,
+} from "@/lib/products";
 import { type AnnouncementPersona } from "@/components/layout/AnnouncementBar";
 
 export type ChatMessage = {
@@ -20,7 +25,9 @@ const GREETINGS: Record<AnnouncementPersona, string> = {
   cartAbandon:
     "Welcome back. You left a few things in your cart — want me to pick up where you left off, or find you something better?",
   newCustomer:
-    "First time here? Good timing. I can help you find your first fit, and your 15% off code is WELCOME.",
+    `First time here? Good timing. I can help you find your first fit, and your ${Math.round(
+      WELCOME_DISCOUNT * 100,
+    )}% off code is ${WELCOME_CODE}.`,
   loyaltyGold:
     "Good to see you again. Member pricing is already applied, and I can show you the new drops before they go public.",
 };

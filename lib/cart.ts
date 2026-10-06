@@ -2,6 +2,8 @@ import {
   BEST_SELLERS,
   LOYALTY_DISCOUNT,
   productBySlug,
+  WELCOME_CODE,
+  WELCOME_DISCOUNT,
   type PricingVariant,
   type Product,
 } from "./products";
@@ -35,23 +37,61 @@ const TAX_RATE = 0.08;
 export type CartTotals = {
   subtotal: number;
   discount: number;
+  // Which rule produced the discount, so the summary rows can label it
+  // without working the rule out a second time and risking a different
+  // answer. It is part of the totals rather than derived at render because a
+  // placed order snapshots these, and a receipt has to keep saying what it
+  // said at checkout.
+  discountKind: "none" | "loyalty" | "welcome";
   shipping: number;
   tax: number;
   total: number;
 };
 
+// Why a code is refused, or null when it is good. A Gold member is turned
+// away rather than stacked: WELCOME is a first-order code and a member is not
+// a first-time buyer, and refusing it is the better demo beat anyway — it
+// shows the store knows who it is talking to.
+export type PromoRejection = "unknown" | "alreadyMember";
+
+export function validatePromo(
+  code: string,
+  variant: PricingVariant
+): PromoRejection | null {
+  if (code.trim().toUpperCase() !== WELCOME_CODE) return "unknown";
+  if (variant === "loyaltyGold") return "alreadyMember";
+  return null;
+}
+
 export function cartTotals(
   lines: ResolvedLine[],
-  variant: PricingVariant
+  variant: PricingVariant,
+  promo?: string | null
 ): CartTotals {
   const subtotal = lines.reduce(
     (sum, line) => sum + line.product.priceUsd * line.quantity,
     0
   );
 
-  // The same 15% the product pages apply, so a member sees one rate across
-  // the whole site rather than a per-item saving that stops adding up here.
-  const discount = variant === "loyaltyGold" ? subtotal * LOYALTY_DISCOUNT : 0;
+  // Member pricing wins outright and the code is ignored, which is the same
+  // rule validatePromo enforces at the field — it is repeated here so a
+  // stored promo from before a persona switch cannot quietly stack.
+  const discountKind: CartTotals["discountKind"] =
+    variant === "loyaltyGold"
+      ? "loyalty"
+      : promo && !validatePromo(promo, variant)
+        ? "welcome"
+        : "none";
+
+  // The loyalty rate is the same 15% the product pages apply, so a member
+  // sees one rate across the whole site rather than a per-item saving that
+  // stops adding up here.
+  const discount =
+    discountKind === "loyalty"
+      ? subtotal * LOYALTY_DISCOUNT
+      : discountKind === "welcome"
+        ? subtotal * WELCOME_DISCOUNT
+        : 0;
 
   // Jen shows FREE for both personas and leaves the "for Gold Members" caveat
   // to the estimator copy. Kept as a value rather than a literal zero because
@@ -64,6 +104,7 @@ export function cartTotals(
   return {
     subtotal,
     discount,
+    discountKind,
     shipping,
     tax,
     total: subtotal - discount + shipping + tax,
