@@ -5,9 +5,13 @@ import type { CartLine } from "./cart";
 // actually exist in our catalogue — her order history lists a Two-tone
 // Trucker Hat and prices the crewneck at $68 and the mug set at $32, none of
 // which match what we sell.
+// A shopper is a customer of the store, not someone who works here, so the
+// address is a consumer one on the demo estate's invented mail domain. It was
+// launchdarkly.com, which read like a colleague rather than a shopper and like
+// a mailbox a prospect could write to.
 export const PROFILE = {
   name: "Alex Rivera",
-  email: "alex.rivera@launchdarkly.com",
+  email: "alex.rivera@launchmail.io",
   joined: "October 2024",
   region: "North America",
 };
