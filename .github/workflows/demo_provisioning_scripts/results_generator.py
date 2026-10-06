@@ -148,24 +148,25 @@ class OrderConfirmationError(OrderPipelineError):
     """The order was taken but the confirmation could not be handed off."""
 
 
-# Each failure is raised from its own function, which is what gets separate
-# groups into the Errors panel rather than one.
+# Each failure is raised from its own function, so the Errors panel has a
+# real stack trace and a distinct exception type for each one.
 #
-# Two things are needed for eight functions to produce eight groups, and both
-# were learned the hard way from a run that produced five.  Three of the eight
-# were absorbed into other groups: "Order pipeline timed out after 30s" ended
-# up holding three modes and "No shipping rates returned for the parcel" two.
+# Eight modes do not produce eight groups, and it is worth recording what was
+# tried, because the obvious fixes all make it worse or do nothing.  Eight
+# functions called straight from report_order_failure give five groups: the
+# stock, tax and persistence failures get absorbed, and the group keeps the
+# title of whichever instance landed first, so a group labelled for one
+# failure shows instances of another.
 #
-# The first is that no two messages may read alike.  "Tax service returned no
-# rate for the destination" and "No shipping rates returned for the parcel"
-# share nearly all of their distinctive words, and they merged.  Hence the
-# rewording of the tax, stock and persistence messages below — each now leads
-# with a different noun and borrows no vocabulary from its neighbours.
-#
-# The second is that no two may share a call site.  They are dispatched
-# through _raise_failure rather than through a function looked up in a table,
-# so each is invoked from its own line and the stack traces differ in two
-# frames rather than only the innermost one.
+# Rewording the absorbed messages so they share no vocabulary changed nothing,
+# so the message is not part of the grouping.  Dispatching through a
+# _raise_failure helper, to give each failure its own call site and make the
+# traces differ in two frames instead of one, took it from five groups to two
+# — the extra shared frame made the traces *more* alike by the measure that
+# actually counts.  So grouping keys on the outer, shared frames and ignores
+# both the message and the innermost frame, which leaves nothing the generator
+# can reasonably do about it.  Calling straight through, as below, is the
+# arrangement that produces the most groups.
 #
 # The messages are deliberately constant.  Interpolating an order id or a SKU
 # would make every instance its own group and the list unreadable, so the
@@ -203,44 +204,18 @@ def _fail_confirm():
     raise OrderConfirmationError("Confirmation handoff rejected by the notifier")
 
 
-# Naming the step means the trace shows where an order died rather than only
-# that it did.
-ORDER_STEPS = [
-    "order-pipeline.submit",
-    "order-pipeline.reserve-stock",
-    "order-pipeline.validate-address",
-    "order-pipeline.calculate-tax",
-    "order-pipeline.rate-shipping",
-    "order-pipeline.authorise-payment",
-    "order-pipeline.persist",
-    "order-pipeline.confirm",
+# Pairing each failure with its step means the trace shows where an order died
+# rather than only that it did.
+ORDER_FAILURES = [
+    ("order-pipeline.submit", _fail_submit),
+    ("order-pipeline.reserve-stock", _fail_reserve_stock),
+    ("order-pipeline.validate-address", _fail_validate_address),
+    ("order-pipeline.calculate-tax", _fail_calculate_tax),
+    ("order-pipeline.rate-shipping", _fail_rate_shipping),
+    ("order-pipeline.authorise-payment", _fail_authorise_payment),
+    ("order-pipeline.persist", _fail_persist),
+    ("order-pipeline.confirm", _fail_confirm),
 ]
-
-
-def _raise_failure(step):
-    """Raise the failure for one pipeline step, each from its own line.
-
-    Spelled out rather than dispatched through a table on purpose: a table
-    would call every failure from one shared line, leaving the stack traces
-    identical apart from the innermost frame, and groups that alike get
-    merged in the Errors panel.
-    """
-    if step == "order-pipeline.submit":
-        _fail_submit()
-    elif step == "order-pipeline.reserve-stock":
-        _fail_reserve_stock()
-    elif step == "order-pipeline.validate-address":
-        _fail_validate_address()
-    elif step == "order-pipeline.calculate-tax":
-        _fail_calculate_tax()
-    elif step == "order-pipeline.rate-shipping":
-        _fail_rate_shipping()
-    elif step == "order-pipeline.authorise-payment":
-        _fail_authorise_payment()
-    elif step == "order-pipeline.persist":
-        _fail_persist()
-    else:
-        _fail_confirm()
 
 
 def observe_span(name, attributes=None):
@@ -282,7 +257,7 @@ def report_order_failure(order_id, ctx, latency, version):
     showing under Observability while flag 05's own Errors tab stayed empty.
     The step still travels as an attribute.
     """
-    step = random.choice(ORDER_STEPS)
+    step, raise_failure = random.choice(ORDER_FAILURES)
     attributes = {
         "order.id": order_id,
         "shopper.key": ctx.key,
@@ -293,7 +268,7 @@ def report_order_failure(order_id, ctx, latency, version):
     }
 
     try:
-        _raise_failure(step)
+        raise_failure()
     except OrderPipelineError as error:
         observe_error(error, attributes)
         observe_log(f"{order_id} failed at {step}: {error}",
