@@ -14,10 +14,15 @@ import SectionPanel from "@/components/layout/SectionPanel";
 // reproduce it. Instead the offsets below are expressed relative to the
 // container width and the image's own height, which holds the crop at any
 // size. The crop is load-bearing: it is what places the LD mark on the cap.
-export default function DropPromo() {
+// flushTop is the page's call rather than this component's, for the same
+// reason as the product detail panel: it depends on what sits above. A
+// full-bleed black section brings its own padding and the inset would double
+// up; another panel above keeps its own 10px frame, and the two together read
+// as the gap between the cards.
+export default function DropPromo({ flushTop = false }: { flushTop?: boolean }) {
   return (
     <SectionPanel
-      flushTop
+      flushTop={flushTop}
       className="bg-grays-white flex flex-col xl:h-[530px] xl:flex-row"
     >
       <div className="relative aspect-[820/530] w-full overflow-hidden bg-grays-02 xl:aspect-auto xl:h-full xl:flex-1">

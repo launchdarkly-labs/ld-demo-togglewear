@@ -47,7 +47,15 @@ export default function ProductPage({ product }: { product: Product }) {
           </div>
         </section>
       ) : (
-        <ProductDetails product={product} variant={variant} />
+        // Flush only when the recommendation row follows, since that section
+        // brings its own padding. Otherwise the panel keeps its own 10px
+        // frame, and so does the drop promo below, which is what separates
+        // the two cards.
+        <ProductDetails
+          product={product}
+          variant={variant}
+          flushBottom={swagRecommendations}
+        />
       )}
 
       {/* Eased out by a progressive rollout, so most shoppers do not have it
@@ -55,7 +63,11 @@ export default function ProductPage({ product }: { product: Product }) {
       {swagRecommendations && (
         <RecommendedForYou products={recommended} variant={variant} />
       )}
-      <DropPromo />
+
+      {/* Flush against either of the black sections that can precede it — the
+          members-only notice or the recommendation row — and inset when the
+          product panel is what sits above. */}
+      <DropPromo flushTop={hidden || swagRecommendations} />
       <Footer />
 
       <SwagAssistant persona={persona} />

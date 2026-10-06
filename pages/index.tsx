@@ -21,7 +21,9 @@ export default function Home() {
       <Hero variant={variant} />
       <BestSellers variant={variant} />
       <QuoteBreak />
-      <DropPromo />
+      {/* Flush, because the quote break above it is a full-bleed black
+          section that already brings its own padding. */}
+      <DropPromo flushTop />
       <Footer />
 
       <SwagAssistant persona={persona} />
