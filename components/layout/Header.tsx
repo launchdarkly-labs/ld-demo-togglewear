@@ -2,6 +2,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCart } from "@/components/cart/CartProvider";
+import SearchPanel from "@/components/ui/SearchPanel";
+import { useShopper } from "@/components/ui/ShopperProvider";
 import { categoryHref, type ProductFilter } from "@/lib/products";
 import AnnouncementBar, { type AnnouncementPersona } from "./AnnouncementBar";
 
@@ -25,9 +27,13 @@ export default function Header({
   persona?: AnnouncementPersona;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   // Read straight from the cart rather than taking a count prop, so no page
   // has to remember to thread it through.
   const { count: cartCount } = useCart();
+  // Search results obey the persona the same way every other list does, so
+  // the variant is read here rather than passed down from each page.
+  const { variant } = useShopper();
 
   // Which link is lit follows the URL rather than being fixed in the list,
   // which had New Drops highlighted on every page including the cart.
@@ -35,7 +41,10 @@ export default function Header({
   const current = pathname === "/products" ? query.category : undefined;
 
   return (
-    <header className="w-full">
+    // relative positions the search panel against the bar, and z-50 keeps the
+    // whole header above the dim that panel lays over the page, so the bar and
+    // the field below it read as one piece of chrome.
+    <header className="relative z-50 w-full">
       <AnnouncementBar persona={persona} />
 
       <div className="w-full bg-grays-black-01">
@@ -82,7 +91,11 @@ export default function Header({
           </nav>
 
           <div className="flex items-center gap-5 md:gap-[25px]">
-            <button type="button" aria-label="Search">
+            <button
+              type="button"
+              aria-label="Search"
+              onClick={() => setSearchOpen(true)}
+            >
               <img src="/icons/magnify.svg" alt="" width={17.2632} height={17.2632} />
             </button>
             <Link href="/account" aria-label="Account">
@@ -126,6 +139,10 @@ export default function Header({
           </nav>
         )}
       </div>
+
+      {searchOpen && (
+        <SearchPanel variant={variant} onClose={() => setSearchOpen(false)} />
+      )}
     </header>
   );
 }

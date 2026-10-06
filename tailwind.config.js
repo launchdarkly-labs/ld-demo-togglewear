@@ -100,6 +100,25 @@ module.exports = {
         "xsmall-caps": ["12px", { lineHeight: "1.2", letterSpacing: "1.44px" }],
         "xsmall-mono": ["12px", { lineHeight: "1.5", letterSpacing: "0.36px" }],
       },
+
+      // The search panel drops out from under the header rather than fading
+      // in on the spot, so it reads as having come from the magnifying glass
+      // it was opened with. Short and eased-out, because anything slower
+      // feels like waiting.
+      keyframes: {
+        "drop-in": {
+          from: { opacity: "0", transform: "translateY(-8px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "fade-in": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
+      },
+      animation: {
+        "drop-in": "drop-in 180ms ease-out",
+        "fade-in": "fade-in 180ms ease-out",
+      },
     },
   },
   plugins: [],

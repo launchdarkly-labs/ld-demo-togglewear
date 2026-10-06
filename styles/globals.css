@@ -6,4 +6,13 @@
   body {
     @apply bg-grays-white font-sohne text-main text-grays-ld-black;
   }
+
+  /* Chrome and Safari draw their own clear button inside a search input. In
+     the header's search panel it landed immediately beside the panel's close
+     button, so the field ended with two X glyphs doing two different things.
+     The panel supplies its own Clear, as a word, instead. */
+  input[type="search"]::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+  }
 }
