@@ -2,12 +2,14 @@ import { useState } from "react";
 import Image from "next/image";
 import SectionPanel from "@/components/layout/SectionPanel";
 import { useCart } from "@/components/cart/CartProvider";
+import SizeGuideDialog from "@/components/ui/SizeGuideDialog";
 import {
   formatPrice,
   memberPriceUsd,
   type PricingVariant,
   type Product,
 } from "@/lib/products";
+import { sizeChartFor } from "@/lib/sizeGuide";
 
 // Figma "product details" (70:1837 default, 70:1540 loyalty), which Jen
 // annotated "personalized product details" in the file.
@@ -38,10 +40,20 @@ export default function ProductDetails({
 }) {
   const [size, setSize] = useState(product.defaultSize);
   const [colorIndex, setColorIndex] = useState(0);
+  const [guideOpen, setGuideOpen] = useState(false);
   const { add } = useCart();
 
   const isMember = variant === "loyaltyGold";
   const hasColors = (product.colors?.length ?? 0) > 1;
+
+  // Jen draws the Size Guide link on her loyalty screen and not her default
+  // one, which this used to follow. That only held while the link did
+  // nothing: a size guide is not a membership perk, and hiding it meant a
+  // non-member buying a hoodie had no way to check a measurement. So it now
+  // follows the product rather than the persona, and appears wherever there
+  // is a size to choose between — which still hides it on every one-size
+  // item in the catalogue.
+  const sizeChart = sizeChartFor(product.sizes);
 
   return (
     <SectionPanel
@@ -116,15 +128,24 @@ export default function ProductDetails({
             <p className="font-sohne text-small font-medium text-grays-ld-black">
               Select Size
             </p>
-            {isMember && (
-              <a
-                href="#"
-                className="shrink-0 font-sohne text-xsmall text-grays-04 underline"
+            {sizeChart && (
+              <button
+                type="button"
+                onClick={() => setGuideOpen(true)}
+                className="shrink-0 font-sohne text-xsmall text-grays-04 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-grays-ld-black focus-visible:ring-offset-2"
               >
                 Size Guide
-              </a>
+              </button>
             )}
           </div>
+
+          {guideOpen && sizeChart && (
+            <SizeGuideDialog
+              productName={product.name}
+              chart={sizeChart}
+              onClose={() => setGuideOpen(false)}
+            />
+          )}
 
           <div className="flex flex-wrap gap-2.5">
             {product.sizes.map((s) => (
