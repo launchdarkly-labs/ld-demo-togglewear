@@ -7,8 +7,12 @@ import { categoryHref } from "@/lib/products";
 // The Shop column points at the listing page. In the Company column, Careers
 // and Contact go to the real LaunchDarkly pages, since ToggleWear is a
 // LaunchDarkly store and those are LaunchDarkly's to answer. About is ours and
-// gets its own page. Wholesale has no destination yet, and a label with no
-// href renders as plain text rather than as a link that does nothing.
+// gets its own page; until it exists, a label with no href renders as plain
+// text rather than as a link that does nothing.
+//
+// Jen's design has a fourth link, Wholesale, which is dropped: bulk and
+// corporate swag has no page and no obvious owner, and the cart's help card
+// already speaks to it. Three Company links reads as deliberate.
 const LINK_COLUMNS: { heading: string; links: { label: string; href?: string }[] }[] = [
   {
     heading: "Shop",
@@ -24,7 +28,6 @@ const LINK_COLUMNS: { heading: string; links: { label: string; href?: string }[]
     links: [
       { label: "About" },
       { label: "Careers", href: "https://launchdarkly.com/careers/" },
-      { label: "Wholesale" },
       { label: "Contact", href: "https://launchdarkly.com/contact-us/" },
     ],
   },
