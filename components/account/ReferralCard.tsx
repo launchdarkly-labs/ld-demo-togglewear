@@ -1,13 +1,31 @@
 import { useState } from "react";
+import Image from "next/image";
+
+// Imported rather than referenced by path like the product photos are. A
+// string path is a stable URL, so re-exporting this image leaves every
+// browser that has seen it serving the old bytes — which is exactly what
+// happened while it was being cropped. An import gets a content-hashed
+// filename instead, so the URL changes whenever the image does.
+import referralArt from "@/public/images/referral.png";
 
 import { REFERRAL } from "@/lib/account";
 
 // Figma "Referrals Container" (78:1649).
 //
-// The left panel in Jen's file is a stock photo of two people in white tees
-// over a purple gradient. The photo is a Pexels placeholder rather than
-// ToggleWear art, so only the gradient is reproduced here — sampled from her
-// render at #855ee7 to #5b67f5. Real art for this panel is a Jen ask.
+// The left panel is Jen's gradient, sampled from her render at #855ee7 to
+// #5b67f5, with the cut-out she composed over it — pulled from her file,
+// trimmed to the pair, and cut off mid-shirt the way she frames it. Showing
+// the figures all the way down to the jeans fit them inside the panel with
+// room to spare, which read as zoomed out next to her version; cropping where
+// she does is what lets them fill it.
+//
+// Her two arrow marks are baked into the image rather than laid over it, so
+// they stay on the shirts at every panel size instead of needing coordinates
+// that only hold at one width. The larger mark is on the nearer figure, as
+// she has it.
+//
+// The photo itself is still a stock placeholder rather than ToggleWear's own
+// art, so this panel remains a Jen ask.
 export default function ReferralCard() {
   const [copied, setCopied] = useState(false);
 
@@ -29,7 +47,19 @@ export default function ReferralCard() {
       </h2>
 
       <div className="flex flex-col overflow-hidden rounded-[12px] bg-grays-ld-black lg:flex-row">
-        <div className="h-40 shrink-0 bg-gradient-to-br from-[#855ee7] to-[#5b67f5] lg:h-auto lg:w-[320px]" />
+        {/* contain rather than cover, because the pair is a portrait cut-out
+            in a panel that is wider than it is tall: covering would crop them
+            to a band of torsos. Bottom-anchored so they stand on the panel's
+            edge the way Jen has them, instead of floating in the middle. */}
+        <div className="relative h-40 shrink-0 overflow-hidden bg-gradient-to-br from-[#855ee7] to-[#5b67f5] lg:h-auto lg:w-[320px]">
+          <Image
+            src={referralArt}
+            alt=""
+            fill
+            sizes="320px"
+            className="object-contain object-bottom"
+          />
+        </div>
 
         <div className="flex flex-1 flex-col justify-between gap-10 p-10">
           <div className="flex flex-col gap-5">
