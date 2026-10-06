@@ -22,14 +22,28 @@ export const TIER = {
   next: "Platinum Early Access",
 };
 
+// One step a parcel has already taken. Only things that have happened are
+// listed — inventing the steps still to come would mean inventing dates for
+// them, and the last entry says where the parcel is now, which is the whole
+// question anyone opens tracking to answer.
+export type ShipmentEvent = {
+  label: string;
+  on: string;
+  where: string;
+};
+
 export type PastOrder = {
   ref: string;
   placedOn: string;
   status: string;
   lines: CartLine[];
   // Jen writes a different action per order: a live shipment gets tracking,
-  // a delivered one gets a summary.
+  // a delivered one gets a summary. Both open the same panel — the content
+  // differs because the shipment does, not because the label does.
   action: string;
+  carrier: string;
+  tracking: string;
+  events: ShipmentEvent[];
 };
 
 export const PAST_ORDERS: PastOrder[] = [
@@ -39,6 +53,13 @@ export const PAST_ORDERS: PastOrder[] = [
     status: "In transit",
     lines: [{ slug: "togglewear-crewneck", size: "M", quantity: 1 }],
     action: "Track package delivery",
+    carrier: "ToggleShip Standard",
+    tracking: "TS4820193847US",
+    events: [
+      { label: "Order placed", on: "Mar 12", where: "Oakland, CA" },
+      { label: "Packed at the warehouse", on: "Mar 13", where: "Oakland, CA" },
+      { label: "In transit", on: "Mar 14", where: "Reno, NV" },
+    ],
   },
   {
     ref: "LD-890312",
@@ -49,6 +70,14 @@ export const PAST_ORDERS: PastOrder[] = [
       { slug: "enamel-mug-set", size: "One size", quantity: 1 },
     ],
     action: "View delivery summary",
+    carrier: "ToggleShip Standard",
+    tracking: "TS4820188211US",
+    events: [
+      { label: "Order placed", on: "Jan 18", where: "Oakland, CA" },
+      { label: "Packed at the warehouse", on: "Jan 19", where: "Oakland, CA" },
+      { label: "In transit", on: "Jan 20", where: "Denver, CO" },
+      { label: "Delivered, left at front door", on: "Jan 22", where: "Austin, TX" },
+    ],
   },
 ];
 

@@ -1,6 +1,8 @@
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
+import ShipmentDialog from "@/components/account/ShipmentDialog";
 import { PAST_ORDERS, type PastOrder } from "@/lib/account";
 import { formatMoney, resolveLines } from "@/lib/cart";
 
@@ -9,6 +11,7 @@ import { formatMoney, resolveLines } from "@/lib/cart";
 // both.
 function OrderCard({ order }: { order: PastOrder }) {
   const lines = resolveLines(order.lines);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   return (
     <article className="flex flex-col gap-5 rounded-[12px] bg-grays-white p-6">
@@ -69,7 +72,11 @@ function OrderCard({ order }: { order: PastOrder }) {
 
       {/* Jen sets this in Base Blue rather than the cart's purple, which is
           the only blue link on the site. */}
-      <button type="button" className="flex items-center gap-2 self-start">
+      <button
+        type="button"
+        onClick={() => setDetailOpen(true)}
+        className="flex items-center gap-2 self-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-grays-ld-black focus-visible:ring-offset-2"
+      >
         <img
           src="/icons/truck.svg"
           alt=""
@@ -81,6 +88,10 @@ function OrderCard({ order }: { order: PastOrder }) {
           {order.action}
         </span>
       </button>
+
+      {detailOpen && (
+        <ShipmentDialog order={order} onClose={() => setDetailOpen(false)} />
+      )}
     </article>
   );
 }
