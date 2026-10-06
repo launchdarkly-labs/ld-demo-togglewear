@@ -6,7 +6,6 @@ import UpsellGrid from "@/components/cart/UpsellGrid";
 import OrderSummary from "@/components/cart/OrderSummary";
 import HelpCard from "@/components/cart/HelpCard";
 import SwagAssistant from "@/components/ui/SwagAssistant";
-import PersonaSwitcher from "@/components/ui/PersonaSwitcher";
 import { useShopper } from "@/components/ui/ShopperProvider";
 
 // Figma "Cart" (70:1354). This is the first screen Jen drew outside her
@@ -42,7 +41,6 @@ export default function CartPage() {
       <Footer />
 
       <SwagAssistant />
-      <PersonaSwitcher />
     </>
   );
 }

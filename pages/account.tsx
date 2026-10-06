@@ -7,7 +7,6 @@ import SavedItems from "@/components/account/SavedItems";
 import ReferralCard from "@/components/account/ReferralCard";
 import Preferences from "@/components/account/Preferences";
 import SwagAssistant from "@/components/ui/SwagAssistant";
-import PersonaSwitcher from "@/components/ui/PersonaSwitcher";
 import { useShopper } from "@/components/ui/ShopperProvider";
 import { useFlags } from "launchdarkly-react-client-sdk";
 
@@ -50,7 +49,6 @@ export default function AccountPage() {
       <Footer />
 
       <SwagAssistant />
-      <PersonaSwitcher />
     </>
   );
 }

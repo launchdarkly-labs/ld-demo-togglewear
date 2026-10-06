@@ -2,6 +2,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCart } from "@/components/cart/CartProvider";
+import AccountMenu from "@/components/ui/AccountMenu";
 import SearchPanel from "@/components/ui/SearchPanel";
 import { useShopper } from "@/components/ui/ShopperProvider";
 import { categoryHref, type ProductFilter } from "@/lib/products";
@@ -28,6 +29,7 @@ export default function Header({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   // Read straight from the cart rather than taking a count prop, so no page
   // has to remember to thread it through.
   const { count: cartCount } = useCart();
@@ -98,9 +100,24 @@ export default function Header({
             >
               <img src="/icons/magnify.svg" alt="" width={17.2632} height={17.2632} />
             </button>
-            <Link href="/account" aria-label="Account">
-              <img src="/icons/person.svg" alt="" width={19.8947} height={19.8947} />
-            </Link>
+            {/* The icon opens the account menu rather than navigating, which
+                is where the shopper is switched. The account page itself is a
+                link inside that menu. */}
+            <div className="relative flex items-center">
+              <button
+                type="button"
+                data-account-trigger
+                aria-label="Account"
+                aria-expanded={accountOpen}
+                onClick={() => setAccountOpen((open) => !open)}
+              >
+                <img src="/icons/person.svg" alt="" width={19.8947} height={19.8947} />
+              </button>
+
+              {accountOpen && (
+                <AccountMenu onClose={() => setAccountOpen(false)} />
+              )}
+            </div>
             <Link
               href="/cart"
               aria-label={`Cart, ${cartCount} items`}

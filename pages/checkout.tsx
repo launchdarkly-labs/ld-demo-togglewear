@@ -6,7 +6,6 @@ import ShippingForm from "@/components/checkout/ShippingForm";
 import PaymentMethod from "@/components/checkout/PaymentMethod";
 import CheckoutSummary from "@/components/checkout/CheckoutSummary";
 import SwagAssistant from "@/components/ui/SwagAssistant";
-import PersonaSwitcher from "@/components/ui/PersonaSwitcher";
 import { useShopper } from "@/components/ui/ShopperProvider";
 import { useCart } from "@/components/cart/CartProvider";
 import { useOrder } from "@/components/checkout/OrderProvider";
@@ -122,7 +121,6 @@ export default function CheckoutPage() {
       <Footer />
 
       <SwagAssistant />
-      <PersonaSwitcher />
     </>
   );
 }

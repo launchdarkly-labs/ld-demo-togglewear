@@ -5,7 +5,6 @@ import Footer from "@/components/layout/Footer";
 import SectionPanel from "@/components/layout/SectionPanel";
 import ProductCard from "@/components/ui/ProductCard";
 import SwagAssistant from "@/components/ui/SwagAssistant";
-import PersonaSwitcher from "@/components/ui/PersonaSwitcher";
 import { useShopper } from "@/components/ui/ShopperProvider";
 import {
   CATEGORIES,
@@ -118,7 +117,6 @@ export default function ProductsPage({
       <Footer />
 
       <SwagAssistant />
-      <PersonaSwitcher />
     </>
   );
 }

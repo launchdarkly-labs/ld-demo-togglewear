@@ -6,7 +6,6 @@ import SectionPanel from "@/components/layout/SectionPanel";
 import QuoteBreak from "@/components/sections/QuoteBreak";
 import DropPromo from "@/components/sections/DropPromo";
 import SwagAssistant from "@/components/ui/SwagAssistant";
-import PersonaSwitcher from "@/components/ui/PersonaSwitcher";
 import { useShopper } from "@/components/ui/ShopperProvider";
 import { categoryHref } from "@/lib/products";
 
@@ -123,7 +122,6 @@ export default function About() {
       <Footer />
 
       <SwagAssistant />
-      <PersonaSwitcher />
     </>
   );
 }

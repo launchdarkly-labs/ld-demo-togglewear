@@ -5,7 +5,6 @@ import BestSellers from "@/components/sections/BestSellers";
 import QuoteBreak from "@/components/sections/QuoteBreak";
 import DropPromo from "@/components/sections/DropPromo";
 import SwagAssistant from "@/components/ui/SwagAssistant";
-import PersonaSwitcher from "@/components/ui/PersonaSwitcher";
 import { useShopper } from "@/components/ui/ShopperProvider";
 
 export default function Home() {
@@ -27,7 +26,6 @@ export default function Home() {
       <Footer />
 
       <SwagAssistant />
-      <PersonaSwitcher />
     </>
   );
 }

@@ -11,6 +11,7 @@ import {
 
 import { useShopper } from "@/components/ui/ShopperProvider";
 import { contextFor } from "@/lib/ldContext";
+import { DEFAULT_SHOPPER_ID, shopperById } from "@/lib/shopper";
 
 // The LaunchDarkly client, owned above the pages so navigating doesn't tear it
 // down and re-initialise it.
@@ -43,13 +44,16 @@ export default function LaunchDarklyProvider({
 
     let cancelled = false;
 
-    // Seeded with the default role rather than the current one: ShopperProvider
-    // restores the saved role in an effect of its own, so on first render the
-    // real value isn't known yet. ShopperIdentity re-identifies the moment it
-    // is, which is one extra evaluation at startup and no flicker.
+    // Seeded with the default shopper rather than the current one:
+    // ShopperProvider restores the saved selection in an effect of its own, so
+    // on first render the real person isn't known yet. ShopperIdentity
+    // re-identifies the moment it is, which is one extra evaluation at startup
+    // and no flicker.
+    const seed = shopperById(DEFAULT_SHOPPER_ID);
+
     asyncWithLDProvider({
       clientSideID,
-      context: contextFor("shopper"),
+      context: contextFor(seed, seed.role),
       reactOptions: { useCamelCaseFlagKeys: false },
       options: { bootstrap: "localStorage" },
     }).then((provider) => {
@@ -71,16 +75,17 @@ export default function LaunchDarklyProvider({
 }
 
 // Pushes the switcher's choice into LaunchDarkly, which is the half that makes
-// the segment rules mean anything: picking Developer re-identifies the context
-// with role "developer", and that is what the Developers segment matches on.
+// the segment rules mean anything: picking Chris re-identifies the context with
+// role "developer", and that is what the Developers segment matches on. Picking
+// Diane sends tier "platinum", and Tyler sends an orderCount of 0.
 function ShopperIdentity({ children }: { children: ReactNode }) {
   const client = useLDClient();
-  const { role } = useShopper();
+  const { person, role } = useShopper();
 
   useEffect(() => {
     if (!client) return;
-    client.identify(contextFor(role));
-  }, [client, role]);
+    client.identify(contextFor(person, role));
+  }, [client, person, role]);
 
   return <>{children}</>;
 }

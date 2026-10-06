@@ -19,7 +19,12 @@ import type { PricingVariant } from "./products";
 export type ShopperRole = "shopper" | "beta" | "developer";
 
 // What a shopper has earned. Drives pricing and the members-only products.
-export type LoyaltyTier = "none" | "gold";
+//
+// Platinum is the top of the swag tier ladder that TIER.next in lib/account.ts
+// already promises. It is a third rung rather than a rename of gold, because
+// the demo needs two member tiers on screen to show that a targeting rule is
+// reading an attribute rather than just answering "member, yes or no".
+export type LoyaltyTier = "none" | "gold" | "platinum";
 
 export type Shopper = {
   role: ShopperRole;
@@ -32,10 +37,146 @@ export const ROLES: { id: ShopperRole; label: string }[] = [
   { id: "developer", label: "Developer" },
 ];
 
+export const TIER_LABELS: Record<LoyaltyTier, string> = {
+  none: "No tier",
+  gold: "Gold",
+  platinum: "Platinum",
+};
+
+// Someone you can shop as.
+//
+// Only the durable facts live here — the things that are true about a person
+// before they touch the site. What is in their cart is deliberately absent:
+// that is a state, it belongs to CartProvider, and it can be true of any of
+// these five. Keeping it out is what stops the Cart Abandoner mistake from
+// being made again, where a thing that happens to people was modelled as a
+// kind of person.
+//
+// orderCount is the one borderline field. It changes, so it is a state in the
+// strict sense, but it only changes by checking out, so it is stable enough to
+// seed per person and it is what "new customer" is read from.
+//
+// No image field, unlike core-demo's personaimage. Jen has not drawn these
+// four and asking her for portraits is a worse trade than rendering initials,
+// which costs nothing and never looks like a stock photo.
+export type Person = {
+  // Ours, for React keys and session storage. Whether this also becomes the
+  // LaunchDarkly context key is a separate decision: a fixed key per person
+  // makes percentage rollouts land the same way every time, which is good for
+  // a scripted demo and bad for showing a 50/50 split re-bucket.
+  id: string;
+  name: string;
+  email: string;
+  tier: LoyaltyTier;
+  role: ShopperRole;
+  orderCount: number;
+  joined: string;
+  region: string;
+  // Why this person is in the roster at all. Surfaced in the switcher so the
+  // demo explains itself instead of relying on whoever is driving to remember.
+  demonstrates: string;
+};
+
+// Five people, not six. There is no "shopper with an abandoned cart" here on
+// purpose — an abandoned cart is something that happens to Alex or Diane or
+// Tyler, so it is reached by leaving items in the cart rather than by picking
+// a different name.
+//
+// Addresses are on an invented consumer mail domain because these are the
+// store's customers. Chris is the exception: he works on ToggleWear rather
+// than buying from it, and the address says so.
+export const SHOPPERS: Person[] = [
+  {
+    id: "alex-rivera",
+    name: "Alex Rivera",
+    email: "alex.rivera@launchmail.io",
+    tier: "gold",
+    role: "shopper",
+    orderCount: 2,
+    joined: "October 2024",
+    region: "North America",
+    demonstrates:
+      "Member pricing, members-only products and tier progress. The only one Jen designed for.",
+  },
+  {
+    id: "diane-whitaker",
+    name: "Diane Whitaker",
+    email: "diane.whitaker@launchmail.io",
+    tier: "platinum",
+    role: "shopper",
+    orderCount: 11,
+    joined: "March 2023",
+    region: "North America",
+    demonstrates:
+      "The top of the ladder: her own hero, the deepest discount and free shipping.",
+  },
+  {
+    id: "tyler-brooks",
+    name: "Tyler Brooks",
+    email: "tyler.brooks@launchmail.io",
+    tier: "none",
+    role: "shopper",
+    orderCount: 0,
+    joined: "This week",
+    region: "North America",
+    demonstrates:
+      "Has never ordered, so first-order offers apply and no member pricing does.",
+  },
+  {
+    id: "megan-caldwell",
+    name: "Megan Caldwell",
+    email: "megan.caldwell@launchmail.io",
+    tier: "none",
+    role: "beta",
+    orderCount: 4,
+    joined: "July 2025",
+    region: "Europe",
+    demonstrates:
+      "Opted into early access, so she sees drops before they are generally available.",
+  },
+  {
+    id: "chris-donovan",
+    name: "Chris Donovan",
+    email: "chris.donovan@togglewear.com",
+    tier: "none",
+    role: "developer",
+    orderCount: 3,
+    joined: "January 2024",
+    region: "North America",
+    demonstrates:
+      "Staff, so he is the first ring of a progressive rollout and sees internal flags.",
+  },
+];
+
+export const DEFAULT_SHOPPER_ID = "alex-rivera";
+
+export function shopperById(id: string): Person {
+  return SHOPPERS.find((p) => p.id === id) ?? SHOPPERS[0];
+}
+
+// Read off a person rather than stored on one. "New customer" is not a kind of
+// shopper you can be assigned, it is a fact about an order history that stops
+// being true the moment someone checks out — which is exactly why it belongs in
+// a function and not in the table above.
+export function isNewCustomer(person: Person): boolean {
+  return person.orderCount === 0;
+}
+
+export function isMember(person: Person): boolean {
+  return person.tier !== "none";
+}
+
 // One copy of what used to be an identical VARIANT_BY_PERSONA table in four
 // separate pages.
+//
+// Platinum maps onto the gold variant for now. The deeper platinum rate has to
+// land in lib/products.ts first, and the pricing there is a chain of
+// `variant === "loyaltyGold"` comparisons rather than an exhaustive map, so a
+// third variant would type-check and then quietly sell to platinum members at
+// list price. Charging them the gold rate is wrong by fifteen points; charging
+// them full price would be wrong by thirty and look like a bug on screen.
 export function variantFor(tier: LoyaltyTier): PricingVariant {
-  return tier === "gold" ? "loyaltyGold" : "default";
+  return tier === "none" ? "default" : "loyaltyGold";
 }
 
 // The throwaway piece. Jen designed two variants of the hero and the item

@@ -5,7 +5,6 @@ import ProductDetails from "@/components/sections/ProductDetails";
 import RecommendedForYou from "@/components/sections/RecommendedForYou";
 import DropPromo from "@/components/sections/DropPromo";
 import SwagAssistant from "@/components/ui/SwagAssistant";
-import PersonaSwitcher from "@/components/ui/PersonaSwitcher";
 import { useShopper } from "@/components/ui/ShopperProvider";
 import { useFlags } from "launchdarkly-react-client-sdk";
 import {
@@ -71,7 +70,6 @@ export default function ProductPage({ product }: { product: Product }) {
       <Footer />
 
       <SwagAssistant />
-      <PersonaSwitcher />
     </>
   );
 }

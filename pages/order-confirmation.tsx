@@ -6,7 +6,6 @@ import DeliveryCard from "@/components/confirmation/DeliveryCard";
 import ShipmentItems from "@/components/confirmation/ShipmentItems";
 import PaymentSummary from "@/components/confirmation/PaymentSummary";
 import SwagAssistant from "@/components/ui/SwagAssistant";
-import PersonaSwitcher from "@/components/ui/PersonaSwitcher";
 import { useShopper } from "@/components/ui/ShopperProvider";
 import { useOrder } from "@/components/checkout/OrderProvider";
 import { resolveLines } from "@/lib/cart";
@@ -83,7 +82,6 @@ export default function OrderConfirmationPage() {
       <Footer />
 
       <SwagAssistant />
-      <PersonaSwitcher />
     </>
   );
 }
