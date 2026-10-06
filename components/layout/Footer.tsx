@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Link from "next/link";
 
 import { categoryHref } from "@/lib/products";
@@ -34,6 +35,12 @@ const LINK_COLUMNS: { heading: string; links: { label: string; href?: string }[]
 ];
 
 export default function Footer() {
+  // Deliberately not persisted. Signing up again is how the demo gets shown
+  // twice, and a reload is a cheaper way back to the form than a button that
+  // unsubscribes you.
+  const [email, setEmail] = useState("");
+  const [subscribed, setSubscribed] = useState(false);
+
   return (
     <footer className="w-full border-t border-grays-02 bg-base-lime">
       <div className="mx-auto max-w-[1440px] px-6 pb-20 pt-16 md:px-10 md:pb-28 md:pt-20 xl:px-16 xl:pb-[137px] xl:pt-[100px]">
@@ -99,20 +106,49 @@ export default function Footer() {
               </p>
             </div>
 
-            <form
-              className="flex h-11 w-full items-center justify-between rounded-[10px] border border-grays-ld-black px-4 focus-within:ring-2 focus-within:ring-grays-ld-black focus-within:ring-offset-2 focus-within:ring-offset-base-lime"
-              onSubmit={(event) => event.preventDefault()}
-            >
-              <input
-                type="email"
-                placeholder="Email address"
-                aria-label="Email address"
-                className="w-full bg-transparent font-sohne text-small text-grays-ld-black placeholder:text-grays-04 focus:outline-none"
-              />
-              <button type="submit" aria-label="Subscribe" className="shrink-0">
-                <img src="/icons/arrow-right.svg" alt="" width={16} height={16} />
-              </button>
-            </form>
+            {/* The confirmation takes the form's place and keeps its height,
+                so the footer does not shift when it appears. type="email"
+                plus required leaves the validation to the browser rather than
+                inventing an error state Jen never drew. */}
+            {subscribed ? (
+              // min-h rather than h, and wrapping rather than truncating: the
+              // column is 340px at its widest and a real address cut off
+              // mid-domain reads as a bug rather than as a long email. The
+              // check sits at the top so it stays level with the first line.
+              <div className="flex min-h-11 w-full items-start gap-2">
+                <img
+                  src="/icons/check.svg"
+                  alt=""
+                  width={16}
+                  height={16}
+                  className="mt-0.5 shrink-0 max-w-none"
+                />
+                <p className="min-w-0 break-words font-sohne text-small text-grays-ld-black">
+                  You’re on the list — new drops go to {email} first.
+                </p>
+              </div>
+            ) : (
+              <form
+                className="flex h-11 w-full items-center justify-between rounded-[10px] border border-grays-ld-black px-4 focus-within:ring-2 focus-within:ring-grays-ld-black focus-within:ring-offset-2 focus-within:ring-offset-base-lime"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setSubscribed(true);
+                }}
+              >
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="Email address"
+                  aria-label="Email address"
+                  className="w-full bg-transparent font-sohne text-small text-grays-ld-black placeholder:text-grays-04 focus:outline-none"
+                />
+                <button type="submit" aria-label="Subscribe" className="shrink-0">
+                  <img src="/icons/arrow-right.svg" alt="" width={16} height={16} />
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </div>
