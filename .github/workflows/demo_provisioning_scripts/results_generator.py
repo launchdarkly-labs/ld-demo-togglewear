@@ -148,10 +148,24 @@ class OrderConfirmationError(OrderPipelineError):
     """The order was taken but the confirmation could not be handed off."""
 
 
-# Each failure is raised from its own function, which is what gets eight
-# separate groups into the Errors panel rather than one.  Grouping keys on the
-# stack trace, so raising every failure from a single shared line would
-# collapse them together however many types there were.
+# Each failure is raised from its own function, which is what gets separate
+# groups into the Errors panel rather than one.
+#
+# Two things are needed for eight functions to produce eight groups, and both
+# were learned the hard way from a run that produced five.  Three of the eight
+# were absorbed into other groups: "Order pipeline timed out after 30s" ended
+# up holding three modes and "No shipping rates returned for the parcel" two.
+#
+# The first is that no two messages may read alike.  "Tax service returned no
+# rate for the destination" and "No shipping rates returned for the parcel"
+# share nearly all of their distinctive words, and they merged.  Hence the
+# rewording of the tax, stock and persistence messages below — each now leads
+# with a different noun and borrows no vocabulary from its neighbours.
+#
+# The second is that no two may share a call site.  They are dispatched
+# through _raise_failure rather than through a function looked up in a table,
+# so each is invoked from its own line and the stack traces differ in two
+# frames rather than only the innermost one.
 #
 # The messages are deliberately constant.  Interpolating an order id or a SKU
 # would make every instance its own group and the list unreadable, so the
@@ -162,7 +176,7 @@ def _fail_submit():
 
 
 def _fail_reserve_stock():
-    raise StockReservationError("Could not reserve stock for one or more line items")
+    raise StockReservationError("Inventory hold refused for one or more SKUs")
 
 
 def _fail_validate_address():
@@ -170,7 +184,7 @@ def _fail_validate_address():
 
 
 def _fail_calculate_tax():
-    raise TaxCalculationError("Tax service returned no rate for the destination")
+    raise TaxCalculationError("Tax jurisdiction lookup came back empty")
 
 
 def _fail_rate_shipping():
@@ -182,25 +196,51 @@ def _fail_authorise_payment():
 
 
 def _fail_persist():
-    raise OrderPersistenceError("Order write failed: connection pool exhausted")
+    raise OrderPersistenceError("Database connection pool exhausted on write")
 
 
 def _fail_confirm():
     raise OrderConfirmationError("Confirmation handoff rejected by the notifier")
 
 
-# Pairing each failure with its step means the trace shows where an order died
-# rather than only that it did.
-ORDER_FAILURES = [
-    ("order-pipeline.submit", _fail_submit),
-    ("order-pipeline.reserve-stock", _fail_reserve_stock),
-    ("order-pipeline.validate-address", _fail_validate_address),
-    ("order-pipeline.calculate-tax", _fail_calculate_tax),
-    ("order-pipeline.rate-shipping", _fail_rate_shipping),
-    ("order-pipeline.authorise-payment", _fail_authorise_payment),
-    ("order-pipeline.persist", _fail_persist),
-    ("order-pipeline.confirm", _fail_confirm),
+# Naming the step means the trace shows where an order died rather than only
+# that it did.
+ORDER_STEPS = [
+    "order-pipeline.submit",
+    "order-pipeline.reserve-stock",
+    "order-pipeline.validate-address",
+    "order-pipeline.calculate-tax",
+    "order-pipeline.rate-shipping",
+    "order-pipeline.authorise-payment",
+    "order-pipeline.persist",
+    "order-pipeline.confirm",
 ]
+
+
+def _raise_failure(step):
+    """Raise the failure for one pipeline step, each from its own line.
+
+    Spelled out rather than dispatched through a table on purpose: a table
+    would call every failure from one shared line, leaving the stack traces
+    identical apart from the innermost frame, and groups that alike get
+    merged in the Errors panel.
+    """
+    if step == "order-pipeline.submit":
+        _fail_submit()
+    elif step == "order-pipeline.reserve-stock":
+        _fail_reserve_stock()
+    elif step == "order-pipeline.validate-address":
+        _fail_validate_address()
+    elif step == "order-pipeline.calculate-tax":
+        _fail_calculate_tax()
+    elif step == "order-pipeline.rate-shipping":
+        _fail_rate_shipping()
+    elif step == "order-pipeline.authorise-payment":
+        _fail_authorise_payment()
+    elif step == "order-pipeline.persist":
+        _fail_persist()
+    else:
+        _fail_confirm()
 
 
 def observe_span(name, attributes=None):
@@ -242,7 +282,7 @@ def report_order_failure(order_id, ctx, latency, version):
     showing under Observability while flag 05's own Errors tab stayed empty.
     The step still travels as an attribute.
     """
-    step, raise_failure = random.choice(ORDER_FAILURES)
+    step = random.choice(ORDER_STEPS)
     attributes = {
         "order.id": order_id,
         "shopper.key": ctx.key,
@@ -253,7 +293,7 @@ def report_order_failure(order_id, ctx, latency, version):
     }
 
     try:
-        raise_failure()
+        _raise_failure(step)
     except OrderPipelineError as error:
         observe_error(error, attributes)
         observe_log(f"{order_id} failed at {step}: {error}",
