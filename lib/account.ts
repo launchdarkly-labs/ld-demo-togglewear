@@ -22,10 +22,21 @@ export const TIER = {
   next: "Platinum Early Access",
 };
 
-// One step a parcel has already taken. Only things that have happened are
-// listed — inventing the steps still to come would mean inventing dates for
-// them, and the last entry says where the parcel is now, which is the whole
-// question anyone opens tracking to answer.
+// Every stage a parcel moves through, in order. Named once here rather than
+// per order, so two orders cannot disagree about what the journey is and so
+// the panel can show the stages an order has not reached yet without each
+// order having to list the ones it is still waiting on.
+export const SHIPMENT_STAGES = [
+  "Order placed",
+  "Packed at the warehouse",
+  "In transit",
+  "Delivered",
+];
+
+// One stage a parcel has already cleared, in stage order and starting from
+// the first. A cleared stage knows its date and place; the stages still to
+// come are filled in from SHIPMENT_STAGES and carry neither, which is how
+// the panel shows the distance left without inventing a date for it.
 export type ShipmentEvent = {
   label: string;
   on: string;
@@ -43,6 +54,15 @@ export type PastOrder = {
   action: string;
   carrier: string;
   tracking: string;
+  // Where it is going. The waypoints in between only mean something once you
+  // know the destination — Reno is either most of the way there or nowhere
+  // near it, depending on where the parcel is headed.
+  destination: string;
+  // The estimate while a parcel is moving, the date it landed once it has
+  // arrived. Carries a midday time rather than a bare date: a bare "2026-01-22"
+  // parses as UTC midnight and then renders as the 21st anywhere west of
+  // Greenwich, which is every machine this demo runs on.
+  arrivesOn: string;
   events: ShipmentEvent[];
 };
 
@@ -55,6 +75,8 @@ export const PAST_ORDERS: PastOrder[] = [
     action: "Track package delivery",
     carrier: "ToggleShip Standard",
     tracking: "TS4820193847US",
+    destination: "Austin, TX",
+    arrivesOn: "2026-03-17T12:00:00",
     events: [
       { label: "Order placed", on: "Mar 12", where: "Oakland, CA" },
       { label: "Packed at the warehouse", on: "Mar 13", where: "Oakland, CA" },
@@ -72,6 +94,8 @@ export const PAST_ORDERS: PastOrder[] = [
     action: "View delivery summary",
     carrier: "ToggleShip Standard",
     tracking: "TS4820188211US",
+    destination: "Austin, TX",
+    arrivesOn: "2026-01-22T12:00:00",
     events: [
       { label: "Order placed", on: "Jan 18", where: "Oakland, CA" },
       { label: "Packed at the warehouse", on: "Jan 19", where: "Oakland, CA" },
