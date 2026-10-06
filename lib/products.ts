@@ -151,6 +151,9 @@ export const BEST_SELLERS: Product[] = [
     badge: "Limited Run",
     gallery: [
       "/images/products/hoodie-blue-model.png",
+      // The black colourway, which is in the swatch list below but was not
+      // shown anywhere until now.
+      "/images/products/hoodie-black-model.png",
       "/images/products/hoodie-rack.png",
       "/images/products/hoodie-colors.png",
     ],
@@ -282,6 +285,41 @@ export const BEST_SELLERS: Product[] = [
       "Heavy-gauge welded seams",
       "Rapid-inflation valve",
       "Packs flat into a reusable bag",
+    ],
+  },
+  // Built from the two photos that were shot but never placed on a screen.
+  // They are the same garment twice — polo-white-model.png is mislabelled; it
+  // is this tee on a model, not a polo — so they make one product with two
+  // angles rather than two products.
+  //
+  // Appended rather than slotted in beside the other apparel, so Jen's card
+  // order on the homepage is left as she arranged it.
+  //
+  // No colors block: the only photography is white, and the design hides the
+  // swatches below two anyway, so offering colourways we cannot show would be
+  // the one dishonest thing on the page.
+  {
+    slug: "togglewear-tee",
+    name: "ToggleWear Tee",
+    priceUsd: 34,
+    description: "Heavyweight cotton, relaxed fit",
+    image: "/images/products/tee-white-hanger.png",
+    category: "apparel",
+    isNew: true,
+    badge: "Limited Run",
+    gallery: [
+      "/images/products/polo-white-model.png",
+      "/images/products/tee-white-hanger.png",
+    ],
+    sizes: APPAREL_SIZES,
+    defaultSize: "M",
+    detail:
+      "The default variant. Heavyweight combed cotton in plain white, with the mark printed small on the left chest — the one you reach for on the days nothing else needs deciding.\n\nRelaxed fit with dropped shoulders; size down for a closer cut.",
+    features: [
+      "Heavyweight combed cotton",
+      "Relaxed fit with dropped shoulders",
+      "Printed LaunchDarkly mark on left chest",
+      "Pre-shrunk and machine washable",
     ],
   },
 ];
