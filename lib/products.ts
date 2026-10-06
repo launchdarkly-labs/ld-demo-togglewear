@@ -1,5 +1,14 @@
 export type ProductColor = { name: string; hex: string };
 
+// The three Jen lists in the footer's Shop column, which is the only place in
+// her designs that names them all — the header shows New Drops, Apparel and
+// Tech, so Accessories appears in one and not the other.
+//
+// Tech is empty until the photography exists. The listing page is built to
+// show an empty category honestly rather than hide the link, because a
+// category a shopper can see in two different menus should not 404.
+export type ProductCategory = "apparel" | "accessories" | "tech";
+
 // Taken from the fills of Jen's swatch SVGs on the two product detail pages.
 // Everything except pink maps to one of her published colour variables.
 export const COLORS: Record<string, ProductColor> = {
@@ -20,6 +29,10 @@ export type Product = {
   priceUsd: number;
   description: string;
   image: string;
+  // Worn things are apparel, including hats, which follows Jen's own grouping
+  // in the drop promo copy: "sweatshirts, hats, tech accessories, and
+  // everyday swag". Everyday swag is what accessories holds.
+  category: ProductCategory;
   isNew?: boolean;
   // Loyalty Gold members get early access to these; they are absent from the
   // default catalogue entirely.
@@ -60,6 +73,7 @@ export const BEST_SELLERS: Product[] = [
     priceUsd: 32,
     description: "Structured 5-panel, adjustable snapback",
     image: "/images/products/cap-white-product.png",
+    category: "apparel",
     badge: "Limited Run",
     gallery: [
       "/images/products/cap-white-model-1.png",
@@ -84,6 +98,7 @@ export const BEST_SELLERS: Product[] = [
     priceUsd: 28,
     description: "Two 12oz enamel mugs, black and white",
     image: "/images/products/mug-pair.png",
+    category: "accessories",
     badge: "Limited Run",
     gallery: [
       "/images/products/mug-pair.png",
@@ -106,6 +121,7 @@ export const BEST_SELLERS: Product[] = [
     priceUsd: 18,
     description: "Mid-calf knit with cushioned sole",
     image: "/images/products/socks-worn.png",
+    category: "apparel",
     isNew: true,
     badge: "Limited Run",
     gallery: [
@@ -130,6 +146,7 @@ export const BEST_SELLERS: Product[] = [
     priceUsd: 68,
     description: "Heavyweight cotton-blend fleece",
     image: "/images/products/hoodie-blue-model.png",
+    category: "apparel",
     isNew: true,
     badge: "Limited Run",
     gallery: [
@@ -162,6 +179,7 @@ export const BEST_SELLERS: Product[] = [
     priceUsd: 12,
     description: "Five weatherproof vinyl stickers",
     image: "/images/products/stickers-laptop.png",
+    category: "accessories",
     badge: "Limited Run",
     gallery: [
       "/images/products/stickers-laptop.png",
@@ -184,6 +202,7 @@ export const BEST_SELLERS: Product[] = [
     priceUsd: 24,
     description: "Heavy cotton canvas, 15L capacity",
     image: "/images/products/tote-canvas.png",
+    category: "accessories",
     badge: "Limited Run",
     gallery: ["/images/products/tote-canvas.png"],
     sizes: ONE_SIZE,
@@ -203,6 +222,7 @@ export const BEST_SELLERS: Product[] = [
     priceUsd: 34,
     description: "Tie-dye cotton twill, one size",
     image: "/images/products/bucket-hat-model-1.png",
+    category: "apparel",
     isNew: true,
     badge: "Limited Run",
     gallery: [
@@ -226,6 +246,7 @@ export const BEST_SELLERS: Product[] = [
     priceUsd: 29,
     description: "32oz insulated with carry loop",
     image: "/images/products/bottle-black.png",
+    category: "accessories",
     badge: "Limited Run",
     gallery: [
       "/images/products/bottle-black.png",
@@ -249,6 +270,7 @@ export const BEST_SELLERS: Product[] = [
     priceUsd: 42,
     description: "Oversized inflatable, ships flat",
     image: "/images/products/pool-float.png",
+    category: "accessories",
     badge: "Limited Run",
     gallery: ["/images/products/pool-float.png"],
     sizes: ONE_SIZE,
@@ -276,6 +298,7 @@ export const MEMBERS_ONLY: Product[] = [
     priceUsd: 58,
     description: "Midweight fleece, no hood",
     image: "/images/products/crewneck-black-front.png",
+    category: "apparel",
     isNew: true,
     membersOnly: true,
     badge: "Early Access",
@@ -336,4 +359,43 @@ export function bestSellersFor(variant: PricingVariant): Product[] {
   // Members-only items come first, ahead of Jen's lead item, so the early
   // access is the first thing a member sees.
   return [...MEMBERS_ONLY, ...rest];
+}
+
+// Ordered as Jen lists them in the footer. "All Swag" is not here because it
+// is the absence of a filter rather than a category.
+export const CATEGORIES: { slug: ProductCategory; label: string }[] = [
+  { slug: "apparel", label: "Apparel" },
+  { slug: "accessories", label: "Accessories" },
+  { slug: "tech", label: "Tech" },
+];
+
+// New Drops sits alongside the categories in the header but is not one — it
+// reads isNew, which several products across both categories carry.
+export type ProductFilter = ProductCategory | "new";
+
+export function filterLabel(filter?: ProductFilter) {
+  if (!filter) return "All Swag";
+  if (filter === "new") return "New Drops";
+  return CATEGORIES.find((c) => c.slug === filter)?.label ?? "All Swag";
+}
+
+// Next hands query values through as string, string[] or undefined, and the
+// value is whatever was in the URL — so this validates against the known set
+// rather than trusting it, and an unrecognised one falls back to everything.
+export function parseFilter(value: unknown): ProductFilter | undefined {
+  if (value === "new") return "new";
+  return CATEGORIES.find((c) => c.slug === value)?.slug;
+}
+
+// Listings start from the persona's catalogue rather than ALL_PRODUCTS, so a
+// non-member browsing into Apparel never sees the members-only crewneck —
+// the same rule the product page already enforces when reached by slug.
+export function productsFor(
+  variant: PricingVariant,
+  filter?: ProductFilter,
+): Product[] {
+  const catalogue = bestSellersFor(variant);
+  if (!filter) return catalogue;
+  if (filter === "new") return catalogue.filter((p) => p.isNew);
+  return catalogue.filter((p) => p.category === filter);
 }
