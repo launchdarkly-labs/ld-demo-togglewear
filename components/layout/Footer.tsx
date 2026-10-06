@@ -7,9 +7,9 @@ import { categoryHref } from "@/lib/products";
 //
 // The Shop column points at the listing page. In the Company column, Careers
 // and Contact go to the real LaunchDarkly pages, since ToggleWear is a
-// LaunchDarkly store and those are LaunchDarkly's to answer. About is ours and
-// gets its own page; until it exists, a label with no href renders as plain
-// text rather than as a link that does nothing.
+// LaunchDarkly store and those are LaunchDarkly's to answer, while About is
+// ours and has its own page. A label with no href renders as plain text
+// rather than as a link that does nothing.
 //
 // Jen's design has a fourth link, Wholesale, which is dropped: bulk and
 // corporate swag has no page and no obvious owner, and the cart's help card
@@ -27,7 +27,7 @@ const LINK_COLUMNS: { heading: string; links: { label: string; href?: string }[]
   {
     heading: "Company",
     links: [
-      { label: "About" },
+      { label: "About", href: "/about" },
       { label: "Careers", href: "https://launchdarkly.com/careers/" },
       { label: "Contact", href: "https://launchdarkly.com/contact-us/" },
     ],
