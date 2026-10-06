@@ -379,6 +379,12 @@ export function filterLabel(filter?: ProductFilter) {
   return CATEGORIES.find((c) => c.slug === filter)?.label ?? "All Swag";
 }
 
+// One place that knows the listing URL's shape, so the header, the footer,
+// the best sellers link and the listing's own tabs cannot drift apart.
+export function categoryHref(filter?: ProductFilter) {
+  return filter ? `/products?category=${filter}` : "/products";
+}
+
 // Next hands query values through as string, string[] or undefined, and the
 // value is whatever was in the URL — so this validates against the known set
 // rather than trusting it, and an unrecognised one falls back to everything.
