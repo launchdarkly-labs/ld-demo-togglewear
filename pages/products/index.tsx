@@ -117,7 +117,7 @@ export default function ProductsPage({
 
       <Footer />
 
-      <SwagAssistant persona={persona} />
+      <SwagAssistant />
       <PersonaSwitcher />
     </>
   );

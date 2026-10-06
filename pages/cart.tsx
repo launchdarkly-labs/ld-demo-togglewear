@@ -41,7 +41,7 @@ export default function CartPage() {
 
       <Footer />
 
-      <SwagAssistant persona={persona} />
+      <SwagAssistant />
       <PersonaSwitcher />
     </>
   );

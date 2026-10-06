@@ -83,7 +83,7 @@ export default function OrderConfirmationPage() {
 
       <Footer />
 
-      <SwagAssistant persona={persona} />
+      <SwagAssistant />
       <PersonaSwitcher />
     </>
   );

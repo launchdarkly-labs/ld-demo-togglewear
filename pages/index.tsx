@@ -26,7 +26,7 @@ export default function Home() {
       <DropPromo flushTop />
       <Footer />
 
-      <SwagAssistant persona={persona} />
+      <SwagAssistant />
       <PersonaSwitcher />
     </>
   );

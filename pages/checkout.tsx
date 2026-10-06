@@ -120,7 +120,7 @@ export default function CheckoutPage() {
 
       <Footer />
 
-      <SwagAssistant persona={persona} />
+      <SwagAssistant />
       <PersonaSwitcher />
     </>
   );

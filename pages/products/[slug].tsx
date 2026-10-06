@@ -70,7 +70,7 @@ export default function ProductPage({ product }: { product: Product }) {
       <DropPromo flushTop={hidden || swagRecommendations} />
       <Footer />
 
-      <SwagAssistant persona={persona} />
+      <SwagAssistant />
       <PersonaSwitcher />
     </>
   );

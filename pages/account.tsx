@@ -49,7 +49,7 @@ export default function AccountPage() {
 
       <Footer />
 
-      <SwagAssistant persona={persona} />
+      <SwagAssistant />
       <PersonaSwitcher />
     </>
   );

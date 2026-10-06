@@ -4,6 +4,7 @@ import { CartProvider } from "@/components/cart/CartProvider";
 import { SavedItemsProvider } from "@/components/account/SavedItemsProvider";
 import { OrderProvider } from "@/components/checkout/OrderProvider";
 import { ShopperProvider } from "@/components/ui/ShopperProvider";
+import { SwagAssistantProvider } from "@/components/ui/SwagAssistantProvider";
 import LaunchDarklyProvider from "@/components/ui/LaunchDarklyProvider";
 import "@/styles/globals.css";
 
@@ -37,7 +38,12 @@ export default function App({ Component, pageProps }: AppProps) {
           <CartProvider>
             <SavedItemsProvider>
               <OrderProvider>
-                <Component {...pageProps} />
+                {/* The assistant's conversation outlives a page change too,
+                    and the cart's help card opens it from outside the corner
+                    of the screen it lives in. */}
+                <SwagAssistantProvider>
+                  <Component {...pageProps} />
+                </SwagAssistantProvider>
               </OrderProvider>
             </SavedItemsProvider>
           </CartProvider>
