@@ -1,15 +1,22 @@
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { useCart } from "@/components/cart/CartProvider";
+import { categoryHref, type ProductFilter } from "@/lib/products";
 import AnnouncementBar, { type AnnouncementPersona } from "./AnnouncementBar";
 
 // Figma component "Top nav" (19:1783), instanced on all eight screens. The
 // announcement bar is nested inside it in the design, so it composes here too.
 // Jen designed desktop only; below lg the links move into a menu panel.
-const NAV_LINKS = [
-  { label: "New Drops", href: "#", active: true },
-  { label: "Apparel", href: "#", active: false },
-  { label: "Tech", href: "#", active: false },
+//
+// Accessories is not in her header, though it is in her footer's Shop column
+// alongside the other three. Having a category a shopper can reach from the
+// bottom of the page but not the top was the odder of the two, so it is here.
+const NAV_LINKS: { label: string; filter: ProductFilter }[] = [
+  { label: "New Drops", filter: "new" },
+  { label: "Apparel", filter: "apparel" },
+  { label: "Accessories", filter: "accessories" },
+  { label: "Tech", filter: "tech" },
 ];
 
 export default function Header({
@@ -21,6 +28,11 @@ export default function Header({
   // Read straight from the cart rather than taking a count prop, so no page
   // has to remember to thread it through.
   const { count: cartCount } = useCart();
+
+  // Which link is lit follows the URL rather than being fixed in the list,
+  // which had New Drops highlighted on every page including the cart.
+  const { pathname, query } = useRouter();
+  const current = pathname === "/products" ? query.category : undefined;
 
   return (
     <header className="w-full">
@@ -48,20 +60,24 @@ export default function Header({
               </svg>
             </button>
 
-            <p className="font-sora text-[24px] font-bold leading-[1.1] tracking-[-0.48px] text-grays-white">
+            <Link
+              href="/"
+              className="font-sora text-[24px] font-bold leading-[1.1] tracking-[-0.48px] text-grays-white"
+            >
               ToggleWear
-            </p>
+            </Link>
           </div>
 
           <nav className="hidden items-center gap-8 font-sohne text-small font-medium lg:flex">
-            {NAV_LINKS.map(({ label, href, active }) => (
-              <a
+            {NAV_LINKS.map(({ label, filter }) => (
+              <Link
                 key={label}
-                href={href}
-                className={active ? "text-grays-white" : "text-grays-02"}
+                href={categoryHref(filter)}
+                aria-current={filter === current ? "page" : undefined}
+                className={filter === current ? "text-grays-white" : "text-grays-02"}
               >
                 {label}
-              </a>
+              </Link>
             ))}
           </nav>
 
@@ -93,15 +109,18 @@ export default function Header({
         {menuOpen && (
           <nav className="border-t border-grays-04 lg:hidden">
             <div className="mx-auto flex max-w-[1440px] flex-col px-6 py-2 font-sohne text-small font-medium md:px-10">
-              {NAV_LINKS.map(({ label, href, active }) => (
-                <a
+              {NAV_LINKS.map(({ label, filter }) => (
+                <Link
                   key={label}
-                  href={href}
+                  href={categoryHref(filter)}
                   onClick={() => setMenuOpen(false)}
-                  className={`py-3 ${active ? "text-grays-white" : "text-grays-02"}`}
+                  aria-current={filter === current ? "page" : undefined}
+                  className={`py-3 ${
+                    filter === current ? "text-grays-white" : "text-grays-02"
+                  }`}
                 >
                   {label}
-                </a>
+                </Link>
               ))}
             </div>
           </nav>

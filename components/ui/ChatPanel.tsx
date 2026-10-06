@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { formatPrice, memberPriceUsd, type Product } from "@/lib/products";
 import {
   SUGGESTED_PROMPTS,
@@ -16,8 +17,8 @@ function ChatProduct({
   memberPricing: boolean;
 }) {
   return (
-    <a
-      href="#"
+    <Link
+      href={`/products/${product.slug}`}
       className="flex items-center gap-3 rounded-[12px] border border-grays-02 bg-grays-white p-2 transition-colors hover:border-grays-04"
     >
       {/* 40x56 rather than square, so the portrait photos are not cropped. */}
@@ -50,7 +51,7 @@ function ChatProduct({
           </p>
         )}
       </div>
-    </a>
+    </Link>
   );
 }
 

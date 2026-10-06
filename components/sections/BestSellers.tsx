@@ -1,6 +1,12 @@
+import Link from "next/link";
+
 import SectionPanel from "@/components/layout/SectionPanel";
 import ProductCard from "@/components/ui/ProductCard";
-import { bestSellersFor, type PricingVariant } from "@/lib/products";
+import {
+  bestSellersFor,
+  categoryHref,
+  type PricingVariant,
+} from "@/lib/products";
 
 // Figma "item block" (63:3644 default, 67:4402 loyalty). Inside the panel the
 // design uses 64px side padding, 75px top, 100px bottom, a 48px gap below the
@@ -25,8 +31,8 @@ export default function BestSellers({
             Best sellers
           </h2>
 
-          <a
-            href="#"
+          <Link
+            href={categoryHref()}
             className="flex shrink-0 items-center gap-2 font-sohne text-small font-medium text-grays-ld-black"
           >
             View All Swag
@@ -37,7 +43,7 @@ export default function BestSellers({
               height={11.714}
               className="max-w-none"
             />
-          </a>
+          </Link>
         </header>
 
         <div className="grid grid-cols-2 gap-x-6 gap-y-12 lg:grid-cols-3 xl:grid-cols-4">

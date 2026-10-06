@@ -1,5 +1,8 @@
 import Image from "next/image";
+import Link from "next/link";
+
 import SectionPanel from "@/components/layout/SectionPanel";
+import { categoryHref } from "@/lib/products";
 
 // Figma "the drop pomo" (63:3648). A white panel split into an 820px photo
 // and a 600px content column at 1440, stacking below xl.
@@ -62,8 +65,10 @@ export default function DropPromo({ flushTop = false }: { flushTop?: boolean }) 
           </p>
         </div>
 
-        <a
-          href="#"
+        {/* New drops rather than the whole catalogue, since that is what the
+            copy above it promises. */}
+        <Link
+          href={categoryHref("new")}
           className="flex w-fit items-center gap-2 font-sohne text-small font-medium text-grays-ld-black"
         >
           Shop new arrivals
@@ -74,7 +79,7 @@ export default function DropPromo({ flushTop = false }: { flushTop?: boolean }) 
             height={11.714}
             className="max-w-none"
           />
-        </a>
+        </Link>
       </div>
     </SectionPanel>
   );

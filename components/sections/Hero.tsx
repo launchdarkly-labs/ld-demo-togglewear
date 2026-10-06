@@ -1,4 +1,7 @@
 import Image from "next/image";
+import Link from "next/link";
+
+import { categoryHref } from "@/lib/products";
 
 // Figma component "hero" (63:4062), which has two variants: Default and
 // "Loyal Gold Member". Both the copy and the image change between them.
@@ -13,6 +16,7 @@ type Variant = {
   headline: string;
   body: string;
   cta: string;
+  href: string;
   image: string;
 };
 
@@ -22,6 +26,10 @@ const VARIANTS: Record<HeroVariant, Variant> = {
     headline: "Official swag for all Control Freaks.",
     body: "Sweatshirts, hats, tech accessories, and everyday swag featuring the ToggleWear mark — designed to be worn, not just worn out.",
     cta: "Shop swag",
+    // The two calls to action say different things, so they go to different
+    // places: everything for the default shopper, and the new arrivals the
+    // member's copy is actually promising.
+    href: categoryHref(),
     image: "/images/hero-default.png",
   },
   loyaltyGold: {
@@ -29,12 +37,13 @@ const VARIANTS: Record<HeroVariant, Variant> = {
     headline: "First rollout goes to you.",
     body: "As a loyalty member, you get first dibs on new merch — before it drops for everyone else.",
     cta: "Shop new arrivals",
+    href: categoryHref("new"),
     image: "/images/hero-loyalty.png",
   },
 };
 
 export default function Hero({ variant = "default" }: { variant?: HeroVariant }) {
-  const { eyebrow, headline, body, cta, image } = VARIANTS[variant];
+  const { eyebrow, headline, body, cta, href, image } = VARIANTS[variant];
 
   return (
     <section className="w-full bg-grays-ld-black">
@@ -56,8 +65,8 @@ export default function Hero({ variant = "default" }: { variant?: HeroVariant })
             </p>
           </div>
 
-          <button
-            type="button"
+          <Link
+            href={href}
             className="flex h-12 w-fit items-center justify-center gap-2.5 rounded-[12px] border border-grays-ld-black bg-base-lime pl-4 pr-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-grays-white focus-visible:ring-offset-2 focus-visible:ring-offset-grays-ld-black"
           >
             <span className="pb-px font-sohne text-main-medium font-medium text-grays-ld-black">
@@ -74,7 +83,7 @@ export default function Hero({ variant = "default" }: { variant?: HeroVariant })
                 className="absolute left-[-24.89px] top-[7.78px] h-[11.714px] w-[46.73px] max-w-none"
               />
             </span>
-          </button>
+          </Link>
         </div>
 
         {/* No bottom padding at xl: the design runs the panel flush to the

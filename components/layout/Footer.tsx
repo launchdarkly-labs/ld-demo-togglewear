@@ -1,12 +1,32 @@
+import Link from "next/link";
+
+import { categoryHref } from "@/lib/products";
+
 // Figma component "footer" (63:3649).
-const LINK_COLUMNS = [
+//
+// The Shop column points at the listing page. In the Company column, Careers
+// and Contact go to the real LaunchDarkly pages, since ToggleWear is a
+// LaunchDarkly store and those are LaunchDarkly's to answer. About is ours and
+// gets its own page. Wholesale has no destination yet, and a label with no
+// href renders as plain text rather than as a link that does nothing.
+const LINK_COLUMNS: { heading: string; links: { label: string; href?: string }[] }[] = [
   {
     heading: "Shop",
-    links: ["All Swag", "Apparel", "Accessories", "Tech"],
+    links: [
+      { label: "All Swag", href: categoryHref() },
+      { label: "Apparel", href: categoryHref("apparel") },
+      { label: "Accessories", href: categoryHref("accessories") },
+      { label: "Tech", href: categoryHref("tech") },
+    ],
   },
   {
     heading: "Company",
-    links: ["About", "Careers", "Wholesale", "Contact"],
+    links: [
+      { label: "About" },
+      { label: "Careers", href: "https://launchdarkly.com/careers/" },
+      { label: "Wholesale" },
+      { label: "Contact", href: "https://launchdarkly.com/contact-us/" },
+    ],
   },
 ];
 
@@ -32,15 +52,37 @@ export default function Footer() {
               <p className="font-sohne text-small font-medium text-grays-ld-black">
                 {heading}
               </p>
-              {links.map((link) => (
-                <a
-                  key={link}
-                  href="#"
-                  className="font-sohne text-small text-grays-04"
-                >
-                  {link}
-                </a>
-              ))}
+              {links.map(({ label, href }) => {
+                const className =
+                  "font-sohne text-small text-grays-04 hover:text-grays-ld-black";
+
+                if (!href) {
+                  return (
+                    <p key={label} className="font-sohne text-small text-grays-04">
+                      {label}
+                    </p>
+                  );
+                }
+
+                // Off-site links open in a new tab on purpose: in a demo,
+                // navigating the browser away from ToggleWear loses the thread
+                // and costs a click to get back.
+                return href.startsWith("http") ? (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={className}
+                  >
+                    {label}
+                  </a>
+                ) : (
+                  <Link key={label} href={href} className={className}>
+                    {label}
+                  </Link>
+                );
+              })}
             </div>
           ))}
 

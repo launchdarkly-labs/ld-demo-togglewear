@@ -1,5 +1,11 @@
+import Link from "next/link";
+
 import ProductCard from "@/components/ui/ProductCard";
-import { type PricingVariant, type Product } from "@/lib/products";
+import {
+  categoryHref,
+  type PricingVariant,
+  type Product,
+} from "@/lib/products";
 
 // Figma "recommended for you" (63:3691). Like the quote break this sits
 // directly on the full-bleed LD Black with no inset panel, so the card text
@@ -26,8 +32,8 @@ export default function RecommendedForYou({
             Recommended for you
           </h2>
 
-          <a
-            href="#"
+          <Link
+            href={categoryHref()}
             className="flex shrink-0 items-center gap-2 font-sohne text-small font-medium text-grays-white"
           >
             View All Swag
@@ -40,7 +46,7 @@ export default function RecommendedForYou({
               // than shipping a second copy of the same glyph.
               className="max-w-none brightness-0 invert"
             />
-          </a>
+          </Link>
         </header>
 
         {/* Scroll padding matches the header inset so the first card lines up
