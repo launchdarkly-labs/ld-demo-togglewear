@@ -20,12 +20,21 @@ import {
 // At 1440 the white panel uses 64px sides, 82px top, 100px bottom, a 64px
 // column gap, and a fixed 610px details column with the gallery taking the
 // rest. Below xl the two columns stack.
+// flushBottom is the page's call rather than this component's, because it
+// depends on what follows. A full-bleed black section below brings its own
+// generous padding and the 10px inset would only double up; another panel
+// below needs the inset to separate the two cards. On the product page the
+// section in between is the recommendation row, which is behind a
+// progressive rollout — so most of the time it is absent and the panels meet
+// with no gap at all unless this is decided per page.
 export default function ProductDetails({
   product,
   variant = "default",
+  flushBottom = false,
 }: {
   product: Product;
   variant?: PricingVariant;
+  flushBottom?: boolean;
 }) {
   const [size, setSize] = useState(product.defaultSize);
   const [colorIndex, setColorIndex] = useState(0);
@@ -36,7 +45,7 @@ export default function ProductDetails({
 
   return (
     <SectionPanel
-      flushBottom
+      flushBottom={flushBottom}
       className="bg-grays-white flex flex-col gap-10 px-6 pb-16 pt-12 md:px-10 md:pb-20 md:pt-16 xl:flex-row xl:gap-16 xl:px-16 xl:pb-[100px] xl:pt-[82px]"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-6">
