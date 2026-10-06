@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
+import { useDialog } from "@/components/ui/useDialog";
 import { type SizeChart } from "@/lib/sizeGuide";
 
 // The app's first real modal. Jen designed no dialog other than the swag
@@ -17,27 +18,13 @@ export default function SizeGuideDialog({
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
 
+  useDialog(onClose);
+
+  // Nothing here is focusable except the close button, so the panel itself
+  // takes the focus and Escape works without tabbing first.
   useEffect(() => {
-    // Whatever opened the dialog gets the focus back when it closes, so
-    // keyboard users are not dropped at the top of the page.
-    const opener = document.activeElement as HTMLElement | null;
     panelRef.current?.focus();
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKeyDown);
-
-    // The page behind a modal should not scroll under it.
-    const { overflow } = document.body.style;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = overflow;
-      opener?.focus();
-    };
-  }, [onClose]);
+  }, []);
 
   // Portaled to the body so the dialog does not depend on where it is
   // rendered: the product panel it is opened from sits inside an
