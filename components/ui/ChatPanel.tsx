@@ -59,16 +59,28 @@ function ChatProduct({
 // this panel is a proposal built from her tokens: the 30px panel radius, the
 // 12px radius she uses on buttons, LD Black chrome, Base/Blue for the
 // customer's own messages, and Geist for the uppercase label.
+// The expand and collapse glyphs: corner brackets pointing out of the box and
+// then into it. Drawn inline like the close cross, since the icon set Jen
+// exported has nothing for either.
+const EXPAND_PATH = "M6 2H2v4M10 14h4v-4";
+const COLLAPSE_PATH = "M2 6h4V2M14 10h-4v4";
+
 export default function ChatPanel({
   messages,
   memberPricing,
+  expanded,
   onSend,
   onClose,
+  onReset,
+  onToggleExpand,
 }: {
   messages: ChatMessage[];
   memberPricing: boolean;
+  expanded: boolean;
   onSend: (text: string) => void;
   onClose: () => void;
+  onReset: () => void;
+  onToggleExpand: () => void;
 }) {
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -89,7 +101,18 @@ export default function ChatPanel({
     <div
       role="dialog"
       aria-label="Swag Assistant"
-      className="fixed bottom-[25px] right-[30px] z-40 flex h-[600px] max-h-[calc(100vh-50px)] w-[calc(100vw-60px)] max-w-[400px] flex-col overflow-hidden rounded-[30px] bg-grays-white shadow-[0_8px_24px_rgba(0,0,0,0.18)]"
+      // Expanding is mostly a width change, because height runs out first: a
+      // 726px-tall window leaves 676px after the margins, so anything past
+      // that is clamped by max-h and the number stops meaning anything. 760
+      // is for the taller monitor, not the laptop.
+      //
+      // Filling the viewport vertically was the obvious move and the wrong
+      // one. A conversation stacks upward from the input, so most of a tall
+      // panel is room it has not grown into yet, and the header ends up far
+      // enough away to be a journey.
+      className={`fixed bottom-[25px] right-[30px] z-40 flex max-h-[calc(100vh-50px)] w-[calc(100vw-60px)] flex-col overflow-hidden rounded-[30px] bg-grays-white shadow-[0_8px_24px_rgba(0,0,0,0.18)] transition-[max-width,height] duration-200 ease-out ${
+        expanded ? "h-[760px] max-w-[880px]" : "h-[600px] max-w-[400px]"
+      }`}
     >
       <header className="flex shrink-0 items-center justify-between gap-3 bg-grays-ld-black px-5 py-4">
         <div className="flex items-center gap-2.5">
@@ -103,68 +126,117 @@ export default function ChatPanel({
           </span>
         </div>
 
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close swag assistant"
-          className="text-grays-03 transition-colors hover:text-grays-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-grays-white"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-            <path
-              d="M4 4l8 8M12 4l-8 8"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              fill="none"
-            />
-          </svg>
-        </button>
+        <div className="flex shrink-0 items-center gap-3">
+          {/* A word, not a third glyph: two icons that both mean "undo
+              something" sitting side by side is the same trap the search
+              field fell into with its two crosses. Hidden until there is
+              actually a conversation to throw away. */}
+          {messages.length > 1 && (
+            <button
+              type="button"
+              onClick={onReset}
+              className="font-sohne text-xsmall-caps font-medium uppercase text-grays-03 transition-colors hover:text-grays-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-grays-white"
+            >
+              Reset
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onToggleExpand}
+            aria-pressed={expanded}
+            aria-label={expanded ? "Shrink swag assistant" : "Expand swag assistant"}
+            className="text-grays-03 transition-colors hover:text-grays-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-grays-white"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                d={expanded ? COLLAPSE_PATH : EXPAND_PATH}
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+            </svg>
+          </button>
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close swag assistant"
+            className="text-grays-03 transition-colors hover:text-grays-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-grays-white"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                d="M4 4l8 8M12 4l-8 8"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                fill="none"
+              />
+            </svg>
+          </button>
+        </div>
       </header>
 
       <div
         ref={scrollRef}
-        className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-4"
+        className="flex flex-1 flex-col overflow-y-auto px-5 py-4"
       >
-        {messages.map((m) => (
-          <div key={m.id} className="flex flex-col gap-2">
+        {/* mt-auto settles a short conversation against the input instead of
+            stranding the greeting at the top above a column of white, which
+            is what every messenger does and what the panel looked wrong
+            without. It stops applying as soon as the messages are taller
+            than the panel, so it does not interfere with scrolling. */}
+        <div className="mt-auto flex flex-col gap-4">
+          {messages.map((m) => (
+            <div key={m.id} className="flex flex-col gap-2">
+            {/* Expanding steps the message type from 14px to 16px. A wider
+                box on its own only lengthens the lines; the thing that makes
+                a conversation easier to read, and legible to a room watching
+                a shared screen, is larger type. The padding grows with it so
+                the bubbles do not end up tight around bigger text. */}
             <div
-              className={
+              className={`rounded-[12px] font-sohne ${
+                expanded ? "px-4 py-2.5 text-main" : "px-3 py-2 text-small"
+              } ${
                 m.role === "user"
-                  ? "max-w-[80%] self-end rounded-[12px] bg-base-blue px-3 py-2 font-sohne text-small text-grays-white"
-                  : "max-w-[85%] self-start rounded-[12px] bg-grays-01 px-3 py-2 font-sohne text-small text-grays-ld-black"
-              }
+                  ? "max-w-[80%] self-end bg-base-blue text-grays-white"
+                  : "max-w-[85%] self-start bg-grays-01 text-grays-ld-black"
+              }`}
             >
               {m.text}
             </div>
 
-            {m.products && m.products.length > 0 && (
-              <div className="flex max-w-[85%] flex-col gap-2 self-start">
-                {m.products.map((p) => (
-                  <ChatProduct
-                    key={p.slug}
-                    product={p}
-                    memberPricing={memberPricing}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+              {m.products && m.products.length > 0 && (
+                <div className="flex max-w-[85%] flex-col gap-2 self-start">
+                  {m.products.map((p) => (
+                    <ChatProduct
+                      key={p.slug}
+                      product={p}
+                      memberPricing={memberPricing}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
 
-        {messages.length === 1 && (
-          <div className="flex flex-wrap gap-2">
-            {SUGGESTED_PROMPTS.map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => submit(p)}
-                className="rounded-full border border-grays-02 px-3 py-1.5 font-sohne text-xsmall text-grays-04 transition-colors hover:border-grays-ld-black hover:text-grays-ld-black"
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-        )}
+          {messages.length === 1 && (
+            <div className="flex flex-wrap gap-2">
+              {SUGGESTED_PROMPTS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => submit(p)}
+                  className="rounded-full border border-grays-02 px-3 py-1.5 font-sohne text-xsmall text-grays-04 transition-colors hover:border-grays-ld-black hover:text-grays-ld-black"
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <form
@@ -179,7 +251,11 @@ export default function ChatPanel({
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Ask about sizing, shipping, anything"
           aria-label="Message the swag assistant"
-          className="h-10 min-w-0 flex-1 rounded-[10px] border border-grays-02 bg-grays-white px-3 font-sohne text-small text-grays-ld-black placeholder:text-grays-03 focus:border-grays-ld-black focus:outline-none"
+          // Scales with the messages, since a 14px field under 16px replies
+          // would be the one thing in the panel that got smaller.
+          className={`h-10 min-w-0 flex-1 rounded-[10px] border border-grays-02 bg-grays-white px-3 font-sohne text-grays-ld-black placeholder:text-grays-03 focus:border-grays-ld-black focus:outline-none ${
+            expanded ? "text-main" : "text-small"
+          }`}
         />
 
         <button

@@ -8,8 +8,17 @@ import { useSwagAssistant } from "@/components/ui/SwagAssistantProvider";
 // SwagAssistantProvider, so that it survives a page change and so that the
 // cart can open it from the other side of the screen.
 export default function SwagAssistant() {
-  const { isOpen, open, close, messages, memberPricing, send } =
-    useSwagAssistant();
+  const {
+    isOpen,
+    open,
+    close,
+    messages,
+    memberPricing,
+    send,
+    reset,
+    expanded,
+    toggleExpanded,
+  } = useSwagAssistant();
 
   if (!isOpen) return <ChatLauncher onClick={open} />;
 
@@ -17,8 +26,11 @@ export default function SwagAssistant() {
     <ChatPanel
       messages={messages}
       memberPricing={memberPricing}
+      expanded={expanded}
       onSend={send}
       onClose={close}
+      onReset={reset}
+      onToggleExpand={toggleExpanded}
     />
   );
 }
