@@ -1,9 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
 
 import { useCart } from "@/components/cart/CartProvider";
-import { SAVED_SLUGS } from "@/lib/account";
+import { useSavedItems } from "@/components/account/SavedItemsProvider";
+import { useShopper } from "@/components/ui/ShopperProvider";
 import { formatPrice, productBySlug, type Product } from "@/lib/products";
 
 // Figma "Saved Items Section" (78:1613).
@@ -93,8 +93,18 @@ function SavedCard({
 }
 
 export default function SavedItems() {
-  const [slugs, setSlugs] = useState(SAVED_SLUGS);
-  const products = slugs.flatMap((slug) => productBySlug(slug) ?? []);
+  const { slugs, remove } = useSavedItems();
+  const { variant } = useShopper();
+
+  // Hidden rather than removed, the same way the product page treats one
+  // reached by slug: a members-only item saved while Gold stays on the list
+  // and comes back when the persona does, but a non-member never sees it.
+  const products = slugs.flatMap((slug) => {
+    const product = productBySlug(slug);
+    if (!product) return [];
+    if (product.membersOnly && variant !== "loyaltyGold") return [];
+    return product;
+  });
 
   return (
     <section className="flex flex-col gap-5">
@@ -113,9 +123,7 @@ export default function SavedItems() {
             <SavedCard
               key={product.slug}
               product={product}
-              onRemove={() =>
-                setSlugs((prev) => prev.filter((s) => s !== product.slug))
-              }
+              onRemove={() => remove(product.slug)}
             />
           ))}
         </div>

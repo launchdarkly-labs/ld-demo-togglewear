@@ -1,6 +1,7 @@
 import type { AppProps } from "next/app";
 import { Sora, Geist } from "next/font/google";
 import { CartProvider } from "@/components/cart/CartProvider";
+import { SavedItemsProvider } from "@/components/account/SavedItemsProvider";
 import { OrderProvider } from "@/components/checkout/OrderProvider";
 import { ShopperProvider } from "@/components/ui/ShopperProvider";
 import LaunchDarklyProvider from "@/components/ui/LaunchDarklyProvider";
@@ -26,17 +27,19 @@ const geist = Geist({
 export default function App({ Component, pageProps }: AppProps) {
   return (
     <div className={`${sora.variable} ${geist.variable}`}>
-      {/* Who is shopping, their cart and their placed order all have to
-          outlive a page change, so they are owned above the page rather than
-          by any one of them. */}
+      {/* Who is shopping, their cart, their wishlist and their placed order
+          all have to outlive a page change, so they are owned above the page
+          rather than by any one of them. */}
       <ShopperProvider>
         {/* Inside ShopperProvider, because the LaunchDarkly context is built
             from the shopper's role — that is what the segments target. */}
         <LaunchDarklyProvider>
           <CartProvider>
-            <OrderProvider>
-              <Component {...pageProps} />
-            </OrderProvider>
+            <SavedItemsProvider>
+              <OrderProvider>
+                <Component {...pageProps} />
+              </OrderProvider>
+            </SavedItemsProvider>
           </CartProvider>
         </LaunchDarklyProvider>
       </ShopperProvider>

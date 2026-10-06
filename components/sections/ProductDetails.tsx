@@ -3,6 +3,7 @@ import Image from "next/image";
 import SectionPanel from "@/components/layout/SectionPanel";
 import { useCart } from "@/components/cart/CartProvider";
 import SizeGuideDialog from "@/components/ui/SizeGuideDialog";
+import { useSavedItems } from "@/components/account/SavedItemsProvider";
 import {
   formatPrice,
   memberPriceUsd,
@@ -42,6 +43,8 @@ export default function ProductDetails({
   const [colorIndex, setColorIndex] = useState(0);
   const [guideOpen, setGuideOpen] = useState(false);
   const { add } = useCart();
+  const { has, toggle: toggleSaved } = useSavedItems();
+  const saved = has(product.slug);
 
   const isMember = variant === "loyaltyGold";
   const hasColors = (product.colors?.length ?? 0) > 1;
@@ -201,11 +204,30 @@ export default function ProductDetails({
           >
             Add to Cart
           </button>
+          {/* The same button saves and unsaves, so the label says which it
+              will do next and aria-pressed carries the state. Saved gains the
+              LD Black border Jen uses for a selected size, rather than a new
+              colour. */}
           <button
             type="button"
-            className="w-full rounded-[2px] border border-grays-02 py-[18px] font-sohne text-large-medium font-medium text-grays-ld-black transition-colors hover:border-grays-04 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-grays-ld-black focus-visible:ring-offset-2"
+            onClick={() => toggleSaved(product.slug)}
+            aria-pressed={saved}
+            className={`flex w-full items-center justify-center gap-2 rounded-[2px] border py-[18px] font-sohne text-large-medium font-medium text-grays-ld-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-grays-ld-black focus-visible:ring-offset-2 ${
+              saved
+                ? "border-grays-ld-black"
+                : "border-grays-02 hover:border-grays-04"
+            }`}
           >
-            Add to Wishlist
+            {saved && (
+              <img
+                src="/icons/check.svg"
+                alt=""
+                width={16}
+                height={16}
+                className="shrink-0 max-w-none"
+              />
+            )}
+            {saved ? "Saved to Wishlist" : "Add to Wishlist"}
           </button>
         </div>
 
