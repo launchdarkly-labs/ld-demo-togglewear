@@ -479,7 +479,7 @@ def order_pipeline_failed_generator(client, stop_event):
     so far outside the noise that sequential testing needs almost no data to
     be certain of it. Nothing about the story got a chance to happen.
     Sustained differences cannot merely be small, either: a small true gap
-    still reaches significance once enough events pile up, and six minutes is
+    still reaches significance once enough events pile up, and four minutes is
     plenty. So the phase has to be noise, and all the divergence has to live
     in the collapse.
 
@@ -529,8 +529,15 @@ def order_pipeline_failed_generator(client, stop_event):
             elapsed = time.time() - start_time
             order_id = f"order-{iteration:06d}"
 
-            walk_test_lat = max(-15, min(15, walk_test_lat + random.uniform(-3, 3)))
-            walk_ctrl_lat = max(-12, min(12, walk_ctrl_lat + random.uniform(-3, 3)))
+            # Bounded tighter than the other walks, and tuned so that after the
+            # 0.8 scaling below the two arms wander by the same ±8ms. A latency
+            # walk free to roam further lets one arm drift above the other for
+            # minutes at a time, and because the detector judges the running
+            # average that drift alone can look like a regression and pull the
+            # flag back before the collapse has started. The oscillators carry
+            # most of the visible character of the line anyway.
+            walk_test_lat = max(-10, min(10, walk_test_lat + random.uniform(-3, 3)))
+            walk_ctrl_lat = max(-8, min(8, walk_ctrl_lat + random.uniform(-3, 3)))
             walk_test_err = max(-3, min(3, walk_test_err + random.uniform(-0.8, 0.8)))
             walk_test_suc = max(-3, min(3, walk_test_suc + random.uniform(-0.8, 0.8)))
 
@@ -555,64 +562,67 @@ def order_pipeline_failed_generator(client, stop_event):
                                + 1.5 * math.sin(elapsed / 15)
                                + 1.0 * math.sin(elapsed / 6))
 
+                    # Latency sits outside the phase split on purpose: v2 is
+                    # exactly as fast as the control for the entire rollout,
+                    # collapse included. Orders fail, they do not slow down,
+                    # which is what a pipeline rejecting work actually looks
+                    # like — declined authorisations and validation failures
+                    # come back as quickly as a success would.
+                    #
+                    # It has to be *no* gap rather than a small one. A version
+                    # of this gave the collapse a 12ms bump, which averaged out
+                    # to a cumulative 5.2ms, and LaunchDarkly rolled the flag
+                    # back on latency a minute into the collapse — before the
+                    # error rate had anything to say. The detector is far more
+                    # sensitive than it looks; 5ms on a 110ms baseline is
+                    # enough. Anything added here competes with the error rate
+                    # to trigger the rollback, and the error rate is the one
+                    # worth telling the story about.
+                    #
+                    # Matching the control's clamp matters for the same reason.
+                    # Both arms clamp to 55-200 around a mean of 110, so the
+                    # floor is nearer than the ceiling and clamping lifts the
+                    # mean; widening either the spread or the ceiling gets one
+                    # arm clipped less often and it comes out measurably slower
+                    # while looking identically centred. The scaling on the
+                    # oscillator and the walk is what holds the two spreads
+                    # equal, and was worth a couple of milliseconds on its own.
+                    latency = int(random.gauss(
+                        110 + (osc_lat * 0.9) + (walk_test_lat * 0.8), 25))
+                    latency = max(55, min(200, latency))
+
                     if elapsed < SUSTAIN_END:
                         # Centred on exactly the same numbers as the control
                         # arm below. v2 keeps its own oscillators and its own
                         # walk, so the two lines are not the identical trace,
                         # but the means match — and the mean is all the
                         # regression detector compares.
-                        error_pct = 4 + (osc_err * 0.6) + (walk_test_err * 0.3) + random.uniform(-1.5, 1.5)
-                        error_pct = max(1, min(9, error_pct))
+                        error_pct = 6 + (osc_err * 0.6) + (walk_test_err * 0.3) + random.uniform(-1.5, 1.5)
+                        error_pct = max(2, min(12, error_pct))
 
                         success_pct = 93 + (osc_suc * 0.5) + (walk_test_suc * 0.3) + random.uniform(-1.2, 1.2)
                         success_pct = max(88, min(97, success_pct))
-
-                        # The oscillator and walk are scaled down to match the
-                        # control arm's spread exactly, which matters more than
-                        # it looks. Both arms clamp to 55-200 around a mean of
-                        # 110, so the lower bound is nearer than the upper and
-                        # clamping lifts the mean; a wider distribution gets
-                        # clipped more often and ends up measurably slower
-                        # while looking like it was centred the same. That
-                        # alone was worth a couple of milliseconds.
-                        latency = int(random.gauss(
-                            110 + (osc_lat * 0.9) + (walk_test_lat * 0.8), 25))
-                        latency = max(55, min(200, latency))
                     else:
-                        # Orders fail, they do not slow down. The pipeline is
-                        # rejecting work — declined authorisations, validation
-                        # failures, 500s — and those come back about as fast as
-                        # a success would, so latency barely moves while the
-                        # error rate goes through the roof.
+                        # A near-linear ramp rather than the steep-then-flat
+                        # one this started as. Counter-intuitively the gentler
+                        # ramp puts *more* in the Errors panel: the rollback
+                        # fires when the cumulative gap clears the detector's
+                        # bar, and reaching that bar slowly means more orders
+                        # have gone through the pipeline by the time it does.
                         #
-                        # That is deliberate, and it is what decides which
-                        # metric triggers the rollback. Latency is the most
-                        # sensitive of the three; last time it fired on a
-                        # cumulative gap of 13.6ms and pulled the flag 67
-                        # seconds into the collapse, long before the error rate
-                        # had anything to say. Keeping latency nearly flat lets
-                        # the rollout survive deep enough for the error rate to
-                        # be the thing that ends it, which is both a better
-                        # story and where most of the Errors panel comes from.
-                        #
-                        # Steep at first and flattening after, so the cumulative
-                        # average moves quickly. curve is 0 at the handover, so
-                        # the numbers continue from the healthy phase with no
-                        # step, and cat_progress clamps at 1 so the worst case
-                        # is sustained rather than falling off a cliff if the
-                        # rollback takes longer than the window.
+                        # curve is 0 at the handover, so the numbers continue
+                        # from the healthy phase with no step, and cat_progress
+                        # clamps at 1 so the worst case is sustained rather
+                        # than falling off a cliff if the rollback takes longer
+                        # than the window.
                         cat_progress = min((elapsed - SUSTAIN_END) / (CATASTROPHE_END - SUSTAIN_END), 1.0)
-                        curve = 1.0 - ((1.0 - cat_progress) ** 2.2)
+                        curve = 1.0 - ((1.0 - cat_progress) ** 1.3)
 
-                        error_pct = 4 + (61 * curve) + 2 * math.sin(elapsed / 20) + random.uniform(-1.5, 1.5)
-                        error_pct = max(1, min(80, error_pct))
+                        error_pct = 6 + (59 * curve) + 2 * math.sin(elapsed / 20) + random.uniform(-1.5, 1.5)
+                        error_pct = max(2, min(80, error_pct))
 
                         success_pct = 93 - (68 * curve) + 1.5 * math.sin(elapsed / 22) + random.uniform(-1.5, 1.5)
                         success_pct = max(18, min(97, success_pct))
-
-                        latency = int(random.gauss(
-                            110 + (12 * curve) + (osc_lat * 0.9) + (walk_test_lat * 0.8), 25))
-                        latency = max(55, min(260, latency))
 
                     error_val = 100 if random.random() * 100 < error_pct else 0
                     success_val = 100 if random.random() * 100 < success_pct else 0
@@ -634,8 +644,14 @@ def order_pipeline_failed_generator(client, stop_event):
                     ctrl_latency = int(random.gauss(110 + osc + walk_ctrl_lat, 25))
                     ctrl_latency = max(55, min(200, ctrl_latency))
 
-                    ctrl_error_pct = 4 + 1.5 * math.sin(elapsed / 28) + random.uniform(-1.5, 1.5)
-                    ctrl_error_pct = max(1, min(9, ctrl_error_pct))
+                    # 6% rather than 4%, in both arms equally. The baseline is
+                    # the cheapest way to put more in the Errors panel: the
+                    # healthy phase is most of the rollout, and moving both
+                    # arms together changes the volume without touching the
+                    # gap between them, so it cannot affect what triggers the
+                    # rollback or when.
+                    ctrl_error_pct = 6 + 1.5 * math.sin(elapsed / 28) + random.uniform(-1.5, 1.5)
+                    ctrl_error_pct = max(2, min(12, ctrl_error_pct))
 
                     ctrl_success_pct = 93 + 1.2 * math.sin(elapsed / 24) + random.uniform(-1.2, 1.2)
                     ctrl_success_pct = max(88, min(97, ctrl_success_pct))
@@ -726,7 +742,7 @@ def generate_results(project_key, api_key):
 
     logging.info("Guarded release generators running.")
     logging.info("  04 Live Inventory Service should reach 100% in about 10 minutes.")
-    logging.info("  05 Order Pipeline v2 should be rolled back around minute 6 to 8.")
+    logging.info("  05 Order Pipeline v2 should be rolled back around minute 5 to 7.")
 
     # Safety cap. The healthy scenario is the slower of the two at about ten
     # minutes, so this has to comfortably exceed that or provisioning would
