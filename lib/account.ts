@@ -124,48 +124,157 @@ export type PastOrder = {
   events: ShipmentEvent[];
 };
 
-export const PAST_ORDERS: PastOrder[] = [
-  {
-    ref: "LD-928104",
-    placedOn: "Placed on Mar 12, 2026",
-    status: "In transit",
-    lines: [{ slug: "togglewear-crewneck", size: "M", quantity: 1 }],
-    action: "Track package delivery",
-    carrier: "ToggleShip Standard",
-    tracking: "TS4820193847US",
-    destination: "Austin, TX",
-    arrivesOn: "2026-03-17T12:00:00",
-    events: [
-      { label: "Order placed", on: "Mar 12", where: "Oakland, CA" },
-      { label: "Packed at the warehouse", on: "Mar 13", where: "Oakland, CA" },
-      { label: "In transit", on: "Mar 14", where: "Reno, NV" },
-    ],
-  },
-  {
-    ref: "LD-890312",
-    placedOn: "Placed on Jan 18, 2026",
-    status: "Delivered",
-    lines: [
-      { slug: "bucket-hat", size: "One size", quantity: 1 },
-      { slug: "enamel-mug-set", size: "One size", quantity: 1 },
-    ],
-    action: "View delivery summary",
-    carrier: "ToggleShip Standard",
-    tracking: "TS4820188211US",
-    destination: "Austin, TX",
-    arrivesOn: "2026-01-22T12:00:00",
-    events: [
-      { label: "Order placed", on: "Jan 18", where: "Oakland, CA" },
-      { label: "Packed at the warehouse", on: "Jan 19", where: "Oakland, CA" },
-      { label: "In transit", on: "Jan 20", where: "Denver, CO" },
-      { label: "Delivered, left at front door", on: "Jan 22", where: "Austin, TX" },
-    ],
-  },
-];
+// Each shopper's most recent orders, keyed by the person they belong to. Not
+// the whole history: Diane has eleven lifetime orders and the card is headed
+// Recent Orders so that showing two of them is not a lie. Tyler joined this
+// week and has none, which is the point of him.
+//
+// Members-only products (the crewneck) only appear in members' orders.
+const ORDERS: Record<string, PastOrder[]> = {
+  "alex-rivera": [
+    {
+      ref: "LD-928104",
+      placedOn: "Placed on Mar 12, 2026",
+      status: "In transit",
+      lines: [{ slug: "togglewear-crewneck", size: "M", quantity: 1 }],
+      action: "Track package delivery",
+      carrier: "ToggleShip Standard",
+      tracking: "TS4820193847US",
+      destination: "Austin, TX",
+      arrivesOn: "2026-03-17T12:00:00",
+      events: [
+        { label: "Order placed", on: "Mar 12", where: "Oakland, CA" },
+        { label: "Packed at the warehouse", on: "Mar 13", where: "Oakland, CA" },
+        { label: "In transit", on: "Mar 14", where: "Reno, NV" },
+      ],
+    },
+    {
+      ref: "LD-890312",
+      placedOn: "Placed on Jan 18, 2026",
+      status: "Delivered",
+      lines: [
+        { slug: "bucket-hat", size: "One size", quantity: 1 },
+        { slug: "enamel-mug-set", size: "One size", quantity: 1 },
+      ],
+      action: "View delivery summary",
+      carrier: "ToggleShip Standard",
+      tracking: "TS4820188211US",
+      destination: "Austin, TX",
+      arrivesOn: "2026-01-22T12:00:00",
+      events: [
+        { label: "Order placed", on: "Jan 18", where: "Oakland, CA" },
+        { label: "Packed at the warehouse", on: "Jan 19", where: "Oakland, CA" },
+        { label: "In transit", on: "Jan 20", where: "Denver, CO" },
+        { label: "Delivered, left at front door", on: "Jan 22", where: "Austin, TX" },
+      ],
+    },
+  ],
+  "diane-whitaker": [
+    {
+      ref: "LD-931577",
+      placedOn: "Placed on Mar 15, 2026",
+      status: "In transit",
+      lines: [
+        { slug: "togglewear-hoodie", size: "L", quantity: 1 },
+        { slug: "togglewear-crewneck", size: "S", quantity: 1 },
+      ],
+      action: "Track package delivery",
+      carrier: "ToggleShip Express",
+      tracking: "TS4820195562US",
+      destination: "Seattle, WA",
+      arrivesOn: "2026-03-18T12:00:00",
+      events: [
+        { label: "Order placed", on: "Mar 15", where: "Oakland, CA" },
+        { label: "Packed at the warehouse", on: "Mar 15", where: "Oakland, CA" },
+        { label: "In transit", on: "Mar 16", where: "Portland, OR" },
+      ],
+    },
+    {
+      ref: "LD-902246",
+      placedOn: "Placed on Feb 2, 2026",
+      status: "Delivered",
+      lines: [
+        { slug: "water-bottle", size: "One size", quantity: 1 },
+        { slug: "canvas-tote", size: "One size", quantity: 1 },
+      ],
+      action: "View delivery summary",
+      carrier: "ToggleShip Express",
+      tracking: "TS4820189034US",
+      destination: "Seattle, WA",
+      arrivesOn: "2026-02-05T12:00:00",
+      events: [
+        { label: "Order placed", on: "Feb 2", where: "Oakland, CA" },
+        { label: "Packed at the warehouse", on: "Feb 2", where: "Oakland, CA" },
+        { label: "In transit", on: "Feb 3", where: "Medford, OR" },
+        { label: "Delivered, handed to resident", on: "Feb 5", where: "Seattle, WA" },
+      ],
+    },
+  ],
+  "tyler-brooks": [],
+  "megan-caldwell": [
+    {
+      ref: "LD-915830",
+      placedOn: "Placed on Feb 20, 2026",
+      status: "Delivered",
+      lines: [
+        { slug: "togglewear-tee", size: "S", quantity: 1 },
+        { slug: "sticker-pack", size: "One size", quantity: 2 },
+      ],
+      action: "View delivery summary",
+      carrier: "ToggleShip International",
+      tracking: "TS4820190457NL",
+      destination: "Amsterdam, NL",
+      arrivesOn: "2026-02-27T12:00:00",
+      events: [
+        { label: "Order placed", on: "Feb 20", where: "Oakland, CA" },
+        { label: "Packed at the warehouse", on: "Feb 21", where: "Oakland, CA" },
+        { label: "In transit", on: "Feb 24", where: "Leipzig, DE" },
+        { label: "Delivered, left with a neighbour", on: "Feb 27", where: "Amsterdam, NL" },
+      ],
+    },
+  ],
+  "chris-donovan": [
+    {
+      ref: "LD-921409",
+      placedOn: "Placed on Mar 4, 2026",
+      status: "Delivered",
+      lines: [
+        { slug: "togglewear-cap", size: "One size", quantity: 1 },
+        { slug: "checkerboard-socks", size: "L/XL", quantity: 1 },
+      ],
+      action: "View delivery summary",
+      carrier: "ToggleShip Standard",
+      tracking: "TS4820192716US",
+      destination: "Denver, CO",
+      arrivesOn: "2026-03-08T12:00:00",
+      events: [
+        { label: "Order placed", on: "Mar 4", where: "Oakland, CA" },
+        { label: "Packed at the warehouse", on: "Mar 5", where: "Oakland, CA" },
+        { label: "In transit", on: "Mar 6", where: "Salt Lake City, UT" },
+        { label: "Delivered to the mailroom", on: "Mar 8", where: "Denver, CO" },
+      ],
+    },
+  ],
+};
 
-// Jen's two saved items are a trucker hat we do not sell and the sticker
-// pack, which we do. The bucket hat stands in for the hat.
-export const SAVED_SLUGS = ["bucket-hat", "sticker-pack"];
+export function ordersFor(person: Person): PastOrder[] {
+  return ORDERS[person.id] ?? [];
+}
+
+// Where each shopper's wishlist starts. Alex's are Jen's two: a trucker hat
+// we do not sell, which the bucket hat stands in for, and the sticker pack.
+// Nobody but a member has the members-only crewneck saved.
+const SAVED: Record<string, string[]> = {
+  "alex-rivera": ["bucket-hat", "sticker-pack"],
+  "diane-whitaker": ["pool-float", "togglewear-tee"],
+  "tyler-brooks": ["togglewear-hoodie", "togglewear-cap"],
+  "megan-caldwell": ["canvas-tote"],
+  "chris-donovan": ["water-bottle", "sticker-pack"],
+};
+
+export function savedSlugsFor(personId: string): string[] {
+  return SAVED[personId] ?? [];
+}
 
 // The link is per shopper and comes from referralLinkFor; what is left here is
 // the offer itself, which is the store's and the same for everyone.

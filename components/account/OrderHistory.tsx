@@ -3,7 +3,8 @@ import Image from "next/image";
 import Link from "next/link";
 
 import ShipmentDialog from "@/components/account/ShipmentDialog";
-import { PAST_ORDERS, type PastOrder } from "@/lib/account";
+import { useShopper } from "@/components/ui/ShopperProvider";
+import { ordersFor, type PastOrder } from "@/lib/account";
 import { formatMoney, resolveLines } from "@/lib/cart";
 
 // Figma "Order History Section" (78:1555). The status and the action are the
@@ -97,14 +98,31 @@ function OrderCard({ order }: { order: PastOrder }) {
 }
 
 export default function OrderHistory() {
+  const { person } = useShopper();
+  const orders = ordersFor(person);
+
   return (
     <section className="flex flex-col gap-5">
+      {/* Jen's heading is Order History. Recent, because the list is the
+          last one or two orders, not every one a shopper has placed. */}
       <h2 className="font-sohne text-h6 font-medium text-grays-ld-black">
-        Order History
+        Recent Orders
       </h2>
-      {PAST_ORDERS.map((order) => (
-        <OrderCard key={order.ref} order={order} />
-      ))}
+      {orders.length > 0 ? (
+        orders.map((order) => <OrderCard key={order.ref} order={order} />)
+      ) : (
+        // Jen drew this full. A new customer lands here with nothing, and it
+        // matches the empty Saved Items card below it.
+        <div className="rounded-[12px] bg-grays-white p-6">
+          <p className="font-sohne text-small text-grays-04">
+            No orders yet.{" "}
+            <Link href="/" className="font-medium text-grays-ld-black underline">
+              Browse the drop
+            </Link>
+            .
+          </p>
+        </div>
+      )}
     </section>
   );
 }
