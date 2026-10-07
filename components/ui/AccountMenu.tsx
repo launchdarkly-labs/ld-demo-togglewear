@@ -126,22 +126,23 @@ export default function AccountMenu({ onClose }: { onClose: () => void }) {
               setShopperId(candidate.id);
               onClose();
             }}
-            className="group flex items-start gap-3 px-5 py-2.5 text-left transition-colors hover:bg-base-lime focus-visible:bg-base-lime focus-visible:outline-none"
+            // Why this person is in the roster, for whoever is driving the
+            // demo. It was a third line under each name, which made the menu
+            // tall enough to run most of the window; it is not needed to wire
+            // anything in LaunchDarkly, since the attributes that matter for
+            // that are listed at the foot of the menu.
+            title={candidate.demonstrates}
+            className="group flex items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-base-lime focus-visible:bg-base-lime focus-visible:outline-none"
           >
             <Avatar person={candidate} />
             <span className="flex min-w-0 flex-col">
               <span className="font-sohne text-small font-medium text-grays-ld-black">
                 {candidate.name}
               </span>
-              {/* Both muted lines darken on hover rather than staying Gray 04,
-                  which goes muddy against the lime. */}
+              {/* Darkens on hover rather than staying Gray 04, which goes
+                  muddy against the lime. */}
               <span className="font-sohne-mono text-[10px] uppercase text-grays-04 group-hover:text-grays-ld-black/70">
                 {TIER_LABELS[candidate.tier]} &middot; {roleLabel(candidate)}
-              </span>
-              {/* Why this person is in the roster, so whoever is driving does
-                  not have to have memorised five bios. */}
-              <span className="font-sohne text-xsmall text-grays-04 group-hover:text-grays-ld-black/70">
-                {candidate.demonstrates}
               </span>
             </span>
           </button>
