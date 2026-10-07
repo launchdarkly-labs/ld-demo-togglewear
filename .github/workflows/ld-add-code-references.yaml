@@ -8,7 +8,7 @@ on:
         required: true
 
 env:
-  LD_PROJECT_KEY: ${{ github.event.inputs.name }}-ld-demo
+  LD_PROJECT_KEY: ${{ github.event.inputs.name }}-togglewear
   LD_API_KEY: ${{ secrets.LD_EAP_API_KEY }}
 
 jobs:

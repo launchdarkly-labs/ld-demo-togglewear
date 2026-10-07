@@ -3826,8 +3826,10 @@ if __name__ == "__main__":
     LD_API_KEY = os.getenv("LD_API_KEY")
     LD_API_KEY_USER = os.getenv("LD_API_KEY_USER")
     LD_PROJECT_KEY = os.getenv("LD_PROJECT_KEY")
-    email = os.getenv('DEMO_NAMESPACE') + "@launchdarkly.com"
-    LD_PROJECT_NAME = f"ToggleWear Demo - {os.getenv('DEMO_NAMESPACE')}"
+    # DEMO_USER rather than DEMO_NAMESPACE: the namespace is <name>-togglewear,
+    # which is neither a mailbox nor what the project should be called.
+    email = os.getenv('DEMO_USER') + "@launchdarkly.com"
+    LD_PROJECT_NAME = f"ToggleWear Demo - {os.getenv('DEMO_USER')}"
 
     demo = DemoBuilder(
         LD_API_KEY, email, LD_API_KEY_USER, LD_PROJECT_KEY, LD_PROJECT_NAME)

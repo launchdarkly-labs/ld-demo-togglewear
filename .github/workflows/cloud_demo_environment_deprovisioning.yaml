@@ -23,7 +23,10 @@ env:
   KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
   ECR_REPOSITORY: ld-demo-togglewear
   KUBECTL_VERSION: "v1.23.0"
-  DEMO_NAMESPACE: ${{ github.event.inputs.name }}
+  # Must match the create workflow exactly. These are what gets deleted, and
+  # the unsuffixed names belong to the same person's ToggleBank demo.
+  DEMO_NAMESPACE: ${{ github.event.inputs.name }}-togglewear
+  LD_PROJECT_KEY: ${{ github.event.inputs.name }}-togglewear
 
 jobs:
   notify-start:
@@ -68,7 +71,7 @@ jobs:
       
       - name: Remove Demo Environment from Demo Engineering Account for ${{ env.DEMO_NAMESPACE }}
         run: |
-          ldcli projects delete --project ${{ env.DEMO_NAMESPACE }}-ld-demo
+          ldcli projects delete --project ${{ env.LD_PROJECT_KEY }}
 
       - name: Check Namespace in Kubernetes
         uses: kodermax/kubectl-aws-eks@master

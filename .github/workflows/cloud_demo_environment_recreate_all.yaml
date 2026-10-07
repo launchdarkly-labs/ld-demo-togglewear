@@ -49,11 +49,17 @@ jobs:
           # Safety net: never touch system namespaces even if they somehow match
           SYSTEM='["default","kube-system","kube-public","kube-node-lease","ingress-nginx"]'
 
+          # Namespaces are <name>-togglewear but the recreate workflow takes the
+          # bare name and adds the suffix itself, so it is stripped here. The
+          # system check runs first, on the real namespace; the exclude list
+          # holds usernames, so it runs after.
           ENVIRONMENTS=$(jq -R -s -c --argjson excluded "$EXCLUDED" --argjson system "$SYSTEM" '
             split("\n")
             | map(select(length > 0))
+            | map(select(. as $ns | $system | index($ns) | not))
+            | map(sub("-togglewear$"; ""))
             | unique
-            | map(select(. as $ns | ($excluded + $system) | index($ns) | not))
+            | map(select(. as $name | $excluded | index($name) | not))
           ' namespaces.txt)
 
           echo "Environments to recreate: $ENVIRONMENTS"

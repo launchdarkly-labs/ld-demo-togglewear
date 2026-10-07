@@ -15,8 +15,14 @@ env:
   KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
   ECR_REPOSITORY: ld-demo-togglewear
   KUBECTL_VERSION: "v1.23.0"
-  DEMO_NAMESPACE: ${{ github.event.inputs.name }}
-  LD_PROJECT_KEY: ${{ github.event.inputs.name }}-ld-demo
+  # The person the demo belongs to. Kept apart from the namespace, which now
+  # carries a suffix, because the owner's email is built from it.
+  DEMO_USER: ${{ github.event.inputs.name }}
+  # Suffixed so a ToggleWear demo and the same person's ToggleBank demo
+  # (namespace <name>, project <name>-ld-demo) never share a namespace, a
+  # subdomain or a LaunchDarkly project. Deleting one would delete the other.
+  DEMO_NAMESPACE: ${{ github.event.inputs.name }}-togglewear
+  LD_PROJECT_KEY: ${{ github.event.inputs.name }}-togglewear
   LD_API_KEY: ${{ secrets.LD_EAP_API_KEY }}
   BEDROCK_GUARDRAIL_ID: ${{ secrets.BEDROCK_GUARDRAIL_ID }}
   BEDROCK_KNOWLEDGE_ID: ${{ secrets.BEDROCK_KNOWLEDGE_ID }}
