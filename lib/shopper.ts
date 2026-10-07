@@ -20,10 +20,10 @@ export type ShopperRole = "shopper" | "beta" | "developer";
 
 // What a shopper has earned. Drives pricing and the members-only products.
 //
-// Platinum is the top of the swag tier ladder that TIER.next in lib/account.ts
-// already promises. It is a third rung rather than a rename of gold, because
-// the demo needs two member tiers on screen to show that a targeting rule is
-// reading an attribute rather than just answering "member, yes or no".
+// Platinum is the top of the swag tier ladder in lib/account.ts, which the
+// gold rung already promises. It is a third rung rather than a rename of gold,
+// because the demo needs two member tiers on screen to show that a targeting
+// rule is reading an attribute rather than just answering "member, yes or no".
 export type LoyaltyTier = "none" | "gold" | "platinum";
 
 export type Shopper = {

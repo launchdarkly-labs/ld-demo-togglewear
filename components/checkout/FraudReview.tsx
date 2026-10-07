@@ -1,4 +1,4 @@
-import { PROFILE } from "@/lib/account";
+import { useShopper } from "@/components/ui/ShopperProvider";
 import type { FraudAssessment } from "@/lib/fraudAgent";
 
 // The agent's verdict, shown under Place Order. Jen has not drawn this —
@@ -38,6 +38,7 @@ export default function FraudReview({
   orderRef: string;
 }) {
   const tone = TONE[assessment.decision];
+  const { person } = useShopper();
 
   return (
     <section
@@ -81,7 +82,7 @@ export default function FraudReview({
       {assessment.decision === "approve" && (
         <p className="border-t border-grays-hairline pt-4 font-sohne text-xsmall text-grays-04">
           Order <span className="font-medium text-grays-ld-black">{orderRef}</span>.
-          A receipt is on its way to {PROFILE.email}.
+          A receipt is on its way to {person.email}.
         </p>
       )}
     </section>

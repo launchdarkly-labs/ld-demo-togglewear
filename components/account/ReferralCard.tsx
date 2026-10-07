@@ -8,7 +8,8 @@ import Image from "next/image";
 // filename instead, so the URL changes whenever the image does.
 import referralArt from "@/public/images/referral.png";
 
-import { REFERRAL } from "@/lib/account";
+import { useShopper } from "@/components/ui/ShopperProvider";
+import { REFERRAL, referralLinkFor } from "@/lib/account";
 
 // Figma "Referrals Container" (78:1649).
 //
@@ -28,10 +29,14 @@ import { REFERRAL } from "@/lib/account";
 // art, so this panel remains a Jen ask.
 export default function ReferralCard() {
   const [copied, setCopied] = useState(false);
+  // A referral link that credits the wrong shopper is worse than no link, so
+  // it is built from whoever is signed in rather than being a constant.
+  const { person } = useShopper();
+  const link = referralLinkFor(person);
 
   async function copyLink() {
     try {
-      await navigator.clipboard.writeText(REFERRAL.link);
+      await navigator.clipboard.writeText(link);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -73,7 +78,7 @@ export default function ReferralCard() {
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <p className="min-w-0 flex-1 truncate rounded-[6px] bg-grays-06 px-4 py-3 font-sohne text-small text-grays-03">
-              {REFERRAL.link}
+              {link}
             </p>
             <button
               type="button"

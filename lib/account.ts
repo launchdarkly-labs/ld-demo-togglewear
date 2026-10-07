@@ -1,3 +1,4 @@
+import type { LoyaltyTier, Person } from "./shopper";
 import type { CartLine } from "./cart";
 
 // The account page's data. Jen drew it for one person, Alex Rivera, a gold
@@ -5,26 +6,79 @@ import type { CartLine } from "./cart";
 // actually exist in our catalogue — her order history lists a Two-tone
 // Trucker Hat and prices the crewneck at $68 and the mug set at $32, none of
 // which match what we sell.
-// A shopper is a customer of the store, not someone who works here, so the
-// address is a consumer one on the demo estate's invented mail domain. It was
-// launchdarkly.com, which read like a colleague rather than a shopper and like
-// a mailbox a prospect could write to.
-export const PROFILE = {
-  name: "Alex Rivera",
-  email: "alex.rivera@launchmail.io",
-  joined: "October 2024",
-  region: "North America",
+//
+// A shopper's name, email, join date and region are not here at all: those are
+// on the Person in lib/shopper.ts, and the cards read them from whoever is
+// signed in. There used to be a PROFILE constant holding Alex's, which is why
+// every shopper's account page greeted them as Alex.
+
+// What each shopper has earned, keyed by the person they belong to. Points are
+// account detail rather than identity, which is why they live here and not on
+// the Person — LaunchDarkly has no use for them until something targets on
+// "close to the next tier".
+const ACCOUNTS: Record<string, { points: number; referralCode: string }> = {
+  "alex-rivera": { points: 750, referralCode: "alex-rivera-ld-92" },
+  "diane-whitaker": { points: 2840, referralCode: "diane-whitaker-ld-07" },
+  "tyler-brooks": { points: 0, referralCode: "tyler-brooks-ld-55" },
+  "megan-caldwell": { points: 320, referralCode: "megan-caldwell-ld-44" },
+  "chris-donovan": { points: 240, referralCode: "chris-donovan-ld-18" },
 };
 
-// FLAG: the tier ladder. The target is the obvious knob — dropping it to 800
-// puts a member within reach of the next tier and changes the nudge copy
-// underneath, without touching the points they have actually earned.
-export const TIER = {
-  points: 750,
-  target: 1000,
-  current: "Gold Member Drop",
-  next: "Platinum Early Access",
+// The rung a tier sits on, and the one above it. Jen's card shows the reward
+// at the current rung on the left and the one being earned toward on the
+// right, so each tier needs both names.
+//
+// FLAG: the target is the obvious knob — dropping gold's to 800 puts a member
+// within reach of the next tier and changes the nudge copy underneath, without
+// touching the points they have actually earned.
+const LADDER: Record<
+  LoyaltyTier,
+  { current: string; next: string; target: number }
+> = {
+  none: { current: "Shopper", next: "Gold Member Drop", target: 500 },
+  gold: {
+    current: "Gold Member Drop",
+    next: "Platinum Early Access",
+    target: 1000,
+  },
+  // Platinum has nothing above it, so there is no target to earn toward. The
+  // card reads atTop and shows a full bar rather than inventing a fourth rung
+  // nobody has designed a reward for.
+  platinum: {
+    current: "Platinum Early Access",
+    next: "Top tier reached",
+    target: 0,
+  },
 };
+
+export type TierStatus = {
+  points: number;
+  target: number;
+  current: string;
+  next: string;
+  atTop: boolean;
+};
+
+export function tierStatusFor(person: Person): TierStatus {
+  const points = ACCOUNTS[person.id]?.points ?? 0;
+  const rung = LADDER[person.tier];
+  const atTop = person.tier === "platinum";
+
+  return {
+    points,
+    // A full bar at the top of the ladder, which needs target to equal points
+    // rather than zero — dividing by zero would render a bar of NaN%.
+    target: atTop ? points : rung.target,
+    current: rung.current,
+    next: rung.next,
+    atTop,
+  };
+}
+
+export function referralLinkFor(person: Person): string {
+  const code = ACCOUNTS[person.id]?.referralCode ?? person.id;
+  return `https://togglewear.com/refer/${code}`;
+}
 
 // Every stage a parcel moves through, in order. Named once here rather than
 // per order, so two orders cannot disagree about what the journey is and so
@@ -113,8 +167,9 @@ export const PAST_ORDERS: PastOrder[] = [
 // pack, which we do. The bucket hat stands in for the hat.
 export const SAVED_SLUGS = ["bucket-hat", "sticker-pack"];
 
+// The link is per shopper and comes from referralLinkFor; what is left here is
+// the offer itself, which is the store's and the same for everyone.
 export const REFERRAL = {
-  link: "https://togglewear.com/refer/alex-rivera-ld-92",
   headline: "Give $20, Get $20",
   description:
     "Invite your team members to join ToggleWear. They'll get $20 USD off their first order, and you'll earn 150 loyalty points plus $20 USD credit once they checkout.",
