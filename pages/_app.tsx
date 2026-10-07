@@ -1,4 +1,5 @@
 import type { AppProps } from "next/app";
+import { useRouter } from "next/router";
 import { Sora, Geist } from "next/font/google";
 import { CartProvider } from "@/components/cart/CartProvider";
 import { SavedItemsProvider } from "@/components/account/SavedItemsProvider";
@@ -26,6 +27,12 @@ const geist = Geist({
 });
 
 export default function App({ Component, pageProps }: AppProps) {
+  // Keyed on the full path so the fade replays on every navigation, including
+  // one that stays on the same page and only changes the category in the
+  // query. Without a key React keeps the markup it already has and the new
+  // page simply snaps into place.
+  const { asPath } = useRouter();
+
   return (
     <div className={`${sora.variable} ${geist.variable}`}>
       {/* Who is shopping, their cart, their wishlist and their placed order
@@ -42,7 +49,9 @@ export default function App({ Component, pageProps }: AppProps) {
                     and the cart's help card opens it from outside the corner
                     of the screen it lives in. */}
                 <SwagAssistantProvider>
-                  <Component {...pageProps} />
+                  <div key={asPath} data-page-transition>
+                    <Component {...pageProps} />
+                  </div>
                 </SwagAssistantProvider>
               </OrderProvider>
             </SavedItemsProvider>
