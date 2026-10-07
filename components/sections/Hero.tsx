@@ -56,7 +56,7 @@ const VARIANTS: Record<LoyaltyTier, Variant> = {
     body: "Platinum members see every new release before it reaches anyone else, with member pricing across the entire range.",
     cta: "Shop the drop",
     href: categoryHref("new"),
-    image: "/images/hero-platinum.png",
+    image: "/images/hero-platinum-tee.png",
   },
 };
 
