@@ -59,6 +59,10 @@ class DemoBuilder:
     # arrives as a table entry, or a step here, with the capability needing it.
     def build(self):
         self.create_project()
+        # Declared up front rather than left to appear when the SDK first sends
+        # one, so device and location are already marked available for
+        # experiments before any segment, flag or experiment refers to them.
+        self.create_contexts()
         self.create_segments()
         self.create_metrics()
         self.create_metric_groups()
