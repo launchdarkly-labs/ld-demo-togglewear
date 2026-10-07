@@ -2,14 +2,15 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { categoryHref } from "@/lib/products";
+import type { LoyaltyTier } from "@/lib/shopper";
 
 // Figma component "hero" (63:4062), which has two variants: Default and
 // "Loyal Gold Member". Both the copy and the image change between them.
 //
-// The right-hand panel is a collage of four overlapping product photos with
-// rotated LD logos on top. It ships as one flat export per variant rather than
-// reassembled from parts, so it can't drift from the design.
-export type HeroVariant = "default" | "loyaltyGold";
+// Keyed on the loyalty tier rather than on the pricing variant it used to
+// take. Platinum maps onto the gold pricing variant for now, so a hero that
+// asked about pricing could not tell the top tier from the middle one and
+// Diane saw Alex's hero.
 
 type Variant = {
   eyebrow: string;
@@ -20,8 +21,8 @@ type Variant = {
   image: string;
 };
 
-const VARIANTS: Record<HeroVariant, Variant> = {
-  default: {
+const VARIANTS: Record<LoyaltyTier, Variant> = {
+  none: {
     eyebrow: "ToggleWear — Built for builders.",
     headline: "Official swag for all Control Freaks.",
     body: "Sweatshirts, hats, tech accessories, and everyday swag featuring the ToggleWear mark — designed to be worn, not just worn out.",
@@ -32,7 +33,7 @@ const VARIANTS: Record<HeroVariant, Variant> = {
     href: categoryHref(),
     image: "/images/hero-default.png",
   },
-  loyaltyGold: {
+  gold: {
     eyebrow: "New drip drop.",
     headline: "First rollout goes to you.",
     body: "As a loyalty member, you get first dibs on new merch — before it drops for everyone else.",
@@ -40,10 +41,27 @@ const VARIANTS: Record<HeroVariant, Variant> = {
     href: categoryHref("new"),
     image: "/images/hero-loyalty.png",
   },
+  // Jen has not designed this one. The copy promises early access and member
+  // pricing, which both exist, and deliberately not free shipping or a
+  // headline discount rate, which do not yet.
+  //
+  // The art is a placeholder cropped from her black tee product shot (Figma
+  // 47:2613) rather than one of the two existing heroes, because reusing the
+  // gold panel here would leave the top tier looking identical to the middle
+  // one, which is the one thing this variant exists to disprove. The export
+  // is 930px wide against her 1400px heroes, so it is slightly softer.
+  platinum: {
+    eyebrow: "Platinum access.",
+    headline: "The whole drop, before anyone.",
+    body: "Platinum members see every new release before it reaches anyone else, with member pricing across the entire range.",
+    cta: "Shop the drop",
+    href: categoryHref("new"),
+    image: "/images/hero-platinum.png",
+  },
 };
 
-export default function Hero({ variant = "default" }: { variant?: HeroVariant }) {
-  const { eyebrow, headline, body, cta, href, image } = VARIANTS[variant];
+export default function Hero({ tier = "none" }: { tier?: LoyaltyTier }) {
+  const { eyebrow, headline, body, cta, href, image } = VARIANTS[tier];
 
   return (
     <section className="w-full bg-grays-ld-black">

@@ -12,12 +12,12 @@ export default function Home() {
   // Loyalty Gold Member. Cart Abandoner and New Customer have no art of their
   // own yet, so they fall back to default while keeping their own
   // announcement bar.
-  const { persona, variant } = useShopper();
+  const { persona, variant, tier } = useShopper();
 
   return (
     <>
       <Header persona={persona} />
-      <Hero variant={variant} />
+      <Hero tier={tier} />
       <BestSellers variant={variant} />
       <QuoteBreak />
       {/* Flush, because the quote break above it is a full-bleed black
