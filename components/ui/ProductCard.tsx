@@ -1,6 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
-import { formatPrice, memberPriceUsd, type Product } from "@/lib/products";
+import {
+  formatPrice,
+  hoverImageFor,
+  memberPriceUsd,
+  type Product,
+} from "@/lib/products";
 
 // Figma "product-card" (19:1447) plus its "Item info" instance (19:1726).
 // The image container is 305x440 in the design; the aspect ratio is kept so
@@ -18,6 +23,7 @@ export default function ProductCard({
   onDark?: boolean;
 }) {
   const { slug, name, priceUsd, description, image, isNew } = product;
+  const hoverShot = hoverImageFor(product);
 
   const nameColor = onDark ? "text-grays-white" : "text-grays-ld-black";
   const priceColor = onDark ? "text-grays-white" : "text-grays-ld-black";
@@ -30,13 +36,31 @@ export default function ProductCard({
         className="group flex flex-col gap-4 focus-visible:outline-none"
       >
         <div className="relative aspect-[305/440] w-full overflow-hidden rounded-[2px] bg-grays-02 group-focus-visible:ring-2 group-focus-visible:ring-base-lime group-focus-visible:ring-offset-2">
-          <Image
-            src={image}
-            alt={name}
-            fill
-            sizes="(min-width: 1280px) 305px, (min-width: 1024px) 33vw, 50vw"
-            className="object-cover"
-          />
+          {/* Both shots share one wrapper so the slow push-in applies to
+              whichever is showing, and so the NEW badge below stays outside it
+              and does not drift while the photo moves. */}
+          <div className="absolute inset-0 transition-transform duration-500 ease-out group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100">
+            <Image
+              src={image}
+              alt={name}
+              fill
+              sizes="(min-width: 1280px) 305px, (min-width: 1024px) 33vw, 50vw"
+              className="object-cover"
+            />
+
+            {/* The second angle, stacked on top and faded in rather than
+                swapped, so there is no blank frame while it loads. Decorative
+                alt because the image above already names the product. */}
+            {hoverShot && (
+              <Image
+                src={hoverShot}
+                alt=""
+                fill
+                sizes="(min-width: 1280px) 305px, (min-width: 1024px) 33vw, 50vw"
+                className="object-cover opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100 motion-reduce:transition-none"
+              />
+            )}
+          </div>
 
           {isNew && (
             <span className="absolute left-4 top-4 rounded-[2px] border border-grays-ld-black bg-base-lime px-2.5 py-1.5 font-geist text-[10px] font-semibold uppercase tracking-[1px] text-grays-ld-black">

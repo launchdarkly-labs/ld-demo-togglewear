@@ -364,6 +364,20 @@ export function productBySlug(slug: string) {
   return ALL_PRODUCTS.find((p) => p.slug === slug);
 }
 
+// The shot a card cross-fades to while the pointer is over it.
+//
+// Taken from the gallery the detail page already uses rather than from a new
+// field, so there is nothing extra to keep in step: a product with a second
+// angle gets the behaviour for free, and the canvas tote and the pool float,
+// which were only ever photographed once, simply do not swap.
+//
+// The first gallery entry that is not already the card's own image, because
+// several galleries lead with that image and fading a photo into itself looks
+// like a flicker rather than a second look.
+export function hoverImageFor(product: Product): string | undefined {
+  return product.gallery.find((shot) => shot !== product.image);
+}
+
 export type PricingVariant = "default" | "loyaltyGold";
 
 // Loyalty Gold members see a lower price. Jen's design shows the mechanic
