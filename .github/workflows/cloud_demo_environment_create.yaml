@@ -151,7 +151,7 @@ jobs:
         run: |
           echo "Creating Pod Identity Association for namespace: ${{ env.DEMO_NAMESPACE }}"
           aws eks create-pod-identity-association \
-            --cluster-name ld-demo-togglewear-eks \
+            --cluster-name ld-core-demo-eks \
             --namespace ${{ env.DEMO_NAMESPACE }} \
             --service-account ld-demo-togglewear-sa \
             --role-arn ${{ env.EKS_POD_IDENTITY_ROLE_ARN }} \
