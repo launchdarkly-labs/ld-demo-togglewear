@@ -21,6 +21,8 @@ env:
   # Suffixed so a ToggleWear demo and the same person's ToggleBank demo
   # (namespace <name>, project <name>-ld-demo) never share a namespace, a
   # subdomain or a LaunchDarkly project. Deleting one would delete the other.
+  # The userKey sent to the demo portal's Lambda below carries the same
+  # suffix: ToggleBank's portal pages read the newest record for <name>.
   DEMO_NAMESPACE: ${{ github.event.inputs.name }}-togglewear
   LD_PROJECT_KEY: ${{ github.event.inputs.name }}-togglewear
   LD_API_KEY: ${{ secrets.LD_EAP_API_KEY }}
@@ -55,7 +57,7 @@ jobs:
           aws lambda invoke \
             --function-name ${{ secrets.WORKFLOW_LAMBDA_FUNCTION_ARN }} \
             --payload '{
-              "body": "{\"userKey\": \"${{ inputs.name }}\", \"runId\": \"${{ github.run_id }}\", \"workflowType\": \"recreate\", \"status\": \"pending\", \"eventType\": \"workflow_started\", \"emailPrefix\": \"${{ inputs.name }}\"}"
+              "body": "{\"userKey\": \"${{ inputs.name }}-togglewear\", \"runId\": \"${{ github.run_id }}\", \"workflowType\": \"recreate\", \"status\": \"pending\", \"eventType\": \"workflow_started\", \"emailPrefix\": \"${{ inputs.name }}\"}"
             }' \
             --cli-binary-format raw-in-base64-out \
             /tmp/lambda-response.json || echo "Failed to create workflow record, continuing anyway..."
@@ -77,7 +79,7 @@ jobs:
           aws lambda invoke \
             --function-name ${{ secrets.WORKFLOW_LAMBDA_FUNCTION_ARN }} \
             --payload '{
-              "body": "{\"userKey\": \"${{ inputs.name }}\", \"runId\": \"${{ github.run_id }}\", \"workflowType\": \"recreate\", \"status\": \"in_progress\", \"eventType\": \"workflow_started\", \"emailPrefix\": \"${{ inputs.name }}\"}"
+              "body": "{\"userKey\": \"${{ inputs.name }}-togglewear\", \"runId\": \"${{ github.run_id }}\", \"workflowType\": \"recreate\", \"status\": \"in_progress\", \"eventType\": \"workflow_started\", \"emailPrefix\": \"${{ inputs.name }}\"}"
             }' \
             --cli-binary-format raw-in-base64-out \
             /tmp/lambda-response.json || echo "Failed to update workflow record, continuing anyway..."
@@ -343,7 +345,7 @@ jobs:
           aws lambda invoke \
             --function-name ${{ secrets.WORKFLOW_LAMBDA_FUNCTION_ARN }} \
             --payload '{
-              "body": "{\"userKey\": \"${{ inputs.name }}\", \"runId\": \"${{ github.run_id }}\", \"workflowType\": \"recreate\", \"status\": \"completed\", \"eventType\": \"workflow_completed\", \"conclusion\": \"success\", \"emailPrefix\": \"${{ inputs.name }}\"}"
+              "body": "{\"userKey\": \"${{ inputs.name }}-togglewear\", \"runId\": \"${{ github.run_id }}\", \"workflowType\": \"recreate\", \"status\": \"completed\", \"eventType\": \"workflow_completed\", \"conclusion\": \"success\", \"emailPrefix\": \"${{ inputs.name }}\"}"
             }' \
             --cli-binary-format raw-in-base64-out \
             /tmp/lambda-response.json || echo "Failed to update workflow record, continuing anyway..."
@@ -361,7 +363,7 @@ jobs:
           aws lambda invoke \
             --function-name ${{ secrets.WORKFLOW_LAMBDA_FUNCTION_ARN }} \
             --payload '{
-              "body": "{\"userKey\": \"${{ inputs.name }}\", \"runId\": \"${{ github.run_id }}\", \"workflowType\": \"recreate\", \"status\": \"failed\", \"eventType\": \"workflow_failed\", \"conclusion\": \"failure\", \"emailPrefix\": \"${{ inputs.name }}\"}"
+              "body": "{\"userKey\": \"${{ inputs.name }}-togglewear\", \"runId\": \"${{ github.run_id }}\", \"workflowType\": \"recreate\", \"status\": \"failed\", \"eventType\": \"workflow_failed\", \"conclusion\": \"failure\", \"emailPrefix\": \"${{ inputs.name }}\"}"
             }' \
             --cli-binary-format raw-in-base64-out \
             /tmp/lambda-response.json || echo "Failed to update workflow record, continuing anyway..."
