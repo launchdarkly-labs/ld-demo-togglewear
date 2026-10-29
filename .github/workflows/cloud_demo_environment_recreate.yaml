@@ -339,6 +339,28 @@ jobs:
           lookback: 0
           ignoreServiceErrors: true
 
+      # Until cert-manager has the store's Let's Encrypt certificate, the
+      # ingress serves its built-in fake one and browsers warn, so the build
+      # waits for it before the Demo Hub and Slack say ready. It usually takes
+      # about five minutes. A certificate that never comes, for example past
+      # Let's Encrypt's weekly limit for one hostname, never fails the build.
+      # ingress-shim names the Certificate after deploy.yaml's TLS secret.
+      - name: Wait for the store's certificate
+        run: |
+          CERT="$DEMO_NAMESPACE-tls-secret"
+          kubectl rollout status deployment/ld-demo-togglewear-deployment -n "$DEMO_NAMESPACE" --timeout=5m \
+            || echo "::warning::The store's pod isn't ready yet."
+          for _ in $(seq 30); do
+            kubectl get certificate "$CERT" -n "$DEMO_NAMESPACE" >/dev/null 2>&1 && break
+            sleep 2
+          done
+          if kubectl wait --for=condition=Ready "certificate/$CERT" -n "$DEMO_NAMESPACE" --timeout=10m; then
+            echo "The store's certificate is ready."
+          else
+            kubectl describe certificate "$CERT" -n "$DEMO_NAMESPACE" || true
+            echo "::warning::The store's certificate isn't ready, so browsers will warn until it is."
+          fi
+
       # Last, so a missing piece never keeps the store offline. The
       # provisioning app finds this step by its name; rename both together.
       - name: Check everything was built
