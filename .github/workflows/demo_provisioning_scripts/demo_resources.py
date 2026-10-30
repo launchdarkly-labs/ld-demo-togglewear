@@ -1048,7 +1048,8 @@ _SWAG_ASSISTANT_GROUNDING = (
     "get-member-perks for this shopper's discounts, points and rewards, and get-order-status "
     "for their recent orders and deliveries. Only mention products and orders a tool returned, "
     "and never make up a price, size, color, stock level, date or tracking number. When you "
-    "talk about an order, give its order number.\n\n"
+    "talk about an order, give its order number. Write plain text: the chat shows "
+    "markdown as typed, so no asterisks or headings.\n\n"
     + _snippet('togglewear-store-policies') + "\n\n"
     + _snippet('togglewear-brand-voice') + "\n\n"
     "Questions about this shopper's own orders, account and perks are part of shopping here. "
@@ -1178,7 +1179,11 @@ AI_TOOLS = [
                     'max_price_usd': {'type': 'number',
                                       'description': 'Only products at or under this price.'},
                     'new_only': {'type': 'boolean',
-                                 'description': 'Only products from the latest drop.'}},
+                                 'description': 'Only products from the latest drop.'},
+                    'sort_by': {'type': 'string',
+                                'enum': ['price_low_to_high', 'price_high_to_low'],
+                                'description': 'Order the results by price, for questions about '
+                                               'the cheapest or most expensive items.'}},
                 'additionalProperties': False,
                 'required': []}},
     {'tool_key': 'get-product-details',

@@ -113,6 +113,8 @@ Every model call in the store goes through an AI Config, so the model, the promp
 - Everyone gets **Standard**: Amazon Nova 2 Lite, short answers.
 - Gold and Platinum members get **Member Concierge**: Claude Sonnet 4.6, fuller answers that compare options and explain fit.
 - Both call four tools against the live catalog and the shopper's orders (`search-products`, `get-product-details`, `get-member-perks`, `get-order-status`), and share the Store Policies and Brand Voice prompt snippets.
+- `search-products` can sort by price, so "the most expensive item" or "the cheapest hoodie" is the store's answer rather than the model's reading of a list.
+- A reply that quotes a price when no tool ran came from the model's memory, so the store asks it once to look it up and answer again. Markdown bold is stripped, since the chat shows text as typed.
 - Shoppers can rate each reply with a thumb, which is recorded as feedback.
 - **To demo:** sign in as Alex, open the chat and ask "Help me pick a hoodie". Then change the Gold and Platinum rule to Standard, and the chat header switches to Nova 2 Lite within a second. Switch the config off and the assistant falls back to scripted replies.
 

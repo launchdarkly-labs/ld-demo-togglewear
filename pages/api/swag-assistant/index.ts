@@ -70,6 +70,21 @@ const MAX_HISTORY = 12;
 // Cards for the products the reply actually names, at most this many.
 const MAX_CARDS = 3;
 
+// A reply that quotes a price when no tool ran came from the model's memory,
+// which knows nothing of this catalogue: Nova 2 Lite once offered a $45
+// hoodie the store has never sold. The model is asked once to look it up.
+const QUOTES_A_PRICE = /\$\s?\d/;
+const LOOK_IT_UP =
+  "Look that up with your tools before you answer, and only quote products and prices " +
+  "they return. Then answer my last question again, without mentioning that you checked.";
+
+// Markdown bold and quote marks. The chat shows text as typed, so they
+// arrive as asterisks and a stray ">"; the prompt asks for plain text and
+// this catches the rest.
+function plainText(text: string) {
+  return text.replace(/(\*\*|__)(.+?)\1/g, "$2").replace(/^>\s?/gm, "");
+}
+
 type Turn = SwagAssistantRequest["messages"][number];
 
 // Bedrock wants the conversation to open with the shopper and alternate from
@@ -97,6 +112,8 @@ type Conversation = {
   // means little unless the judge can see the catalogue facts the reply was
   // supposed to repeat.
   toolTranscript: string[];
+  // Whether it quoted a price without a tool and was asked to look it up.
+  lookedUp: boolean;
 };
 
 async function converse(
@@ -120,11 +137,16 @@ async function converse(
   const tokens: LDTokenUsage = { total: 0, input: 0, output: 0 };
   const toolCalls: string[] = [];
   const toolTranscript: string[] = [];
+  let lookedUp = false;
+  // What the model is shown new on each call, for the conversation trace.
+  let inputs = [question];
 
   for (let round = 0; ; round += 1) {
+    const shown = inputs;
+    inputs = [];
     const response = await agentRun.modelCall(
       config.model?.name ?? "",
-      round === 0 ? [question] : [],
+      shown,
       async () => {
         const response = (await model.invoke(messages)) as AIMessage;
         return { response, usage: getAIUsageFromResponse(response) };
@@ -135,11 +157,23 @@ async function converse(
 
     const calls = response.tool_calls ?? [];
     if (calls.length === 0 || round === MAX_TOOL_ROUNDS) {
-      const content = textOf(response);
+      const content = plainText(textOf(response));
+      if (
+        !lookedUp &&
+        toolCalls.length === 0 &&
+        round < MAX_TOOL_ROUNDS &&
+        QUOTES_A_PRICE.test(content)
+      ) {
+        lookedUp = true;
+        messages.push(new HumanMessage(LOOK_IT_UP));
+        inputs = [LOOK_IT_UP];
+        continue;
+      }
       return {
         content,
         metrics: { success: content.length > 0, tokens, toolCalls },
         toolTranscript,
+        lookedUp,
       };
     }
 
@@ -290,6 +324,7 @@ async function handler(
     span.setAttributes({
       "ai.tool_calls": result.metrics.toolCalls?.join(",") ?? "",
       "ai.tokens.total": result.metrics.tokens?.total ?? 0,
+      "ai.looked_up_unsourced_price": result.lookedUp,
     });
 
     if (!result.metrics.success) {

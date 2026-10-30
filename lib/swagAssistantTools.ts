@@ -52,6 +52,9 @@ function summary(product: Product, member: boolean) {
 //
 // Whole words, singular or plural, rather than substrings: "hat" is inside
 // "that" and "what", which turned a search for hats into the whole catalogue.
+//
+// A word in the name counts twice, so a search for hoodies puts the hoodies
+// ahead of the Heather Crewneck, whose copy compares itself to one.
 function matches(product: Product, terms: string[]) {
   const text = [
     product.name,
@@ -62,7 +65,14 @@ function matches(product: Product, terms: string[]) {
   ]
     .join(" ")
     .toLowerCase();
-  return terms.filter((term) => new RegExp(`\\b${term}(e?s)?\\b`).test(text)).length;
+  const name = product.name.toLowerCase();
+  const found = (term: string, within: string) =>
+    new RegExp(`\\b${term}(e?s)?\\b`).test(within);
+  return terms.reduce(
+    (score, term) =>
+      score + (found(term, text) ? 1 : 0) + (found(term, name) ? 1 : 0),
+    0,
+  );
 }
 
 // Only ranked searches are cut short. A browse with no words in it, of one
@@ -102,7 +112,16 @@ export function swagAssistantTools(context: LDContext): SwagAssistantTools {
       category?: string;
       max_price_usd?: number;
       new_only?: boolean;
+      sort_by?: "price_low_to_high" | "price_high_to_low";
     }) => {
+      // Without it, "the most expensive item" meant the model reading the
+      // whole catalogue for the top price, and it sometimes picked wrong.
+      const byPrice =
+        args.sort_by === "price_low_to_high"
+          ? 1
+          : args.sort_by === "price_high_to_low"
+            ? -1
+            : 0;
       // Singular, so "speakers" finds the Bluetooth Speaker; matches() adds
       // the plural back.
       const terms = (args.query ?? "")
@@ -123,7 +142,18 @@ export function swagAssistantTools(context: LDContext): SwagAssistantTools {
           )
           .map((p) => ({ product: p, score: terms.length ? matches(p, terms) : 1 }))
           .filter((r) => r.score > 0)
-          .sort((a, b) => b.score - a.score)
+          // Within a point of the best match: the crewneck that only
+          // mentions hoodies is left out of a search for hoodies, and the
+          // model was quoting it as the cheapest one.
+          .filter((r, _, all) => r.score >= Math.max(...all.map((x) => x.score)) - 1)
+          // Price orders products that match equally well, so "cheapest
+          // hoodie" is the cheapest of the hoodies rather than of everything
+          // that mentions one.
+          .sort(
+            (a, b) =>
+              b.score - a.score ||
+              byPrice * (a.product.priceUsd - b.product.priceUsd),
+          )
           .slice(0, terms.length ? MAX_RESULTS : undefined)
           .map((r) => r.product);
 
