@@ -160,8 +160,6 @@ The checkout shows each agent's step as it runs. The rules the agents apply live
 | **Hold for review** | Put more than $800 in the cart, such as the Camera Drone and the VR Headset, or five of one item | 45 points for either one |
 | **Decline** | Change the shipping ZIP to `99999`, a known reshipping address. Or combine the over-$800 total with five of one item | 70 points or more |
 
-To show changing an agent without a deploy, lower the review threshold in the Order Decision agent's instructions from 40 to 30. An ordinary order with any signal at all then starts getting held.
-
 **Judges.** Four judge AI Configs score the other configs' output from 0 to 1, and their scores are metrics that guarded rollouts and experiments can use:
 
 | Judge | Scores | Model |

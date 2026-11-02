@@ -37,8 +37,9 @@ export type OrderUnderReview = {
 };
 
 // The fallback's thresholds. The Order Decision agent's own are in its
-// instructions in LaunchDarkly, as the same numbers, so sliding its review
-// threshold down to 30 holds the ordinary order without a deploy.
+// instructions in LaunchDarkly, and the Decision Policy judge's in its prompt,
+// as the same numbers. Signals only come in 45 and 80 points, so moving a
+// threshold changes nothing unless it crosses one of those.
 //
 // The two soft signals are weighted at 45 each so that either one on its own
 // clears REVIEW_AT, and the two together clear DECLINE_AT. Anything less and
