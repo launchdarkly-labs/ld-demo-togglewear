@@ -1788,9 +1788,7 @@ AGENT_CONFIGS = [
            'Weighs the three specialists\' findings and approves, holds or declines the order, '
            'with the explanation the shopper sees at checkout. Two judges score every decision, '
            'Decision Policy for making the call the points call for and Shopper Message for the '
-           'explanation, on its Monitoring tab. Demo it: lower the review threshold in these '
-           'instructions from 40 to 30 and an ordinary order with any signal at all starts '
-           'getting held, with no deploy.',
+           'explanation, on its Monitoring tab.',
            _SONNET, 400,
            _ORDER_REVIEW_OPENING
            + "You make the call on each order once the three specialists have reported. Add "
