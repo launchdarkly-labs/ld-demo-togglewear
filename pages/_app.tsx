@@ -1,6 +1,5 @@
 import type { AppProps } from "next/app";
 import { useRouter } from "next/router";
-import { Sora, Geist } from "next/font/google";
 import localFont from "next/font/local";
 import { CartProvider } from "@/components/cart/CartProvider";
 import { SavedItemsProvider } from "@/components/account/SavedItemsProvider";
@@ -16,17 +15,22 @@ import "@/styles/globals.css";
 
 // next/font is only allowed in _app, not _document, so the CSS variable the
 // Tailwind theme references is defined on a wrapper here.
-const sora = Sora({
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
+//
+// Sora and Geist are Google Fonts (OFL, licences beside the files), kept here
+// rather than loaded with next/font/google, which downloads them during the
+// build: when Google didn't answer, the image build failed. These are the
+// latin files Google serves; Sora's is one variable font for every weight.
+const sora = localFont({
+  src: "../styles/fonts/Sora-Latin.woff2",
+  weight: "400 700",
   variable: "--font-sora",
   display: "swap",
 });
 
 // Only SemiBold is used, on the NEW badge and the swag assistant launcher.
-const geist = Geist({
-  subsets: ["latin"],
-  weight: ["600"],
+const geist = localFont({
+  src: "../styles/fonts/Geist-Latin.woff2",
+  weight: "600",
   variable: "--font-geist",
   display: "swap",
 });
