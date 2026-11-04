@@ -18,6 +18,7 @@ import { cartTotals, resolveLines } from "@/lib/cart";
 import { estimateDelivery, paymentLabel, type ShipTo } from "@/lib/order";
 import { EVENTS, useTrack } from "@/lib/events";
 import { apiHeaders } from "@/lib/api";
+import { recordFlagError } from "@/lib/flagErrors";
 import { assessOrder, orderNumber, type FraudAssessment } from "@/lib/fraudAgent";
 import {
   streamOrderReview,
@@ -108,7 +109,7 @@ export default function CheckoutPage() {
       ) {
         const error = new Error("Payment processor timed out");
         error.name = "PaymentProcessorError";
-        LDObserve.recordError(error, "Charge failed on the new payment processor", {
+        recordFlagError(client, "newPaymentProcessor", error, "Charge failed on the new payment processor", {
           flag: "newPaymentProcessor",
           processor: "new",
           orderRef: ref,

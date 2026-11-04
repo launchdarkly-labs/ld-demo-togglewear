@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { useLDClient } from "launchdarkly-react-client-sdk";
-import { LDObserve } from "@launchdarkly/observability";
 import { apiHeaders } from "@/lib/api";
+import { recordFlagError } from "@/lib/flagErrors";
 import type { SizeChart } from "@/lib/sizeGuide";
+
+// Flag 05's key, for tying the errors it causes in the browser to it.
+export const CATALOG_FLAG = "catalogApiV2";
 
 // What the product page expects back from /api/catalog/[slug]. It was written
 // against v1, where every product has at least one size, the size chart has
@@ -115,7 +118,9 @@ export function useStockBadge(slug: string): string | undefined {
         if (!cancelled) setBadge(body.badge);
       })
       .catch((err: Error) => {
-        LDObserve.recordError(err, "Stock lookup failed", { "product.slug": slug });
+        recordFlagError(client, CATALOG_FLAG, err, "Stock lookup failed", {
+          "product.slug": slug,
+        });
         if (!cancelled) setBadge("Stock unavailable");
       });
 

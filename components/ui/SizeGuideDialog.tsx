@@ -1,15 +1,24 @@
 import { Component, useEffect, useRef, type ErrorInfo, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { LDObserve } from "@launchdarkly/observability";
+import type { LDClient } from "launchdarkly-react-client-sdk";
 
 import { useDialog } from "@/components/ui/useDialog";
+import { CATALOG_FLAG } from "@/lib/catalog";
+import { recordFlagError } from "@/lib/flagErrors";
 import { type SizeChart } from "@/lib/sizeGuide";
 
 // Keeps a size guide that fails to render from taking the product panel down
 // with it, and records the error, which React would otherwise keep from the
 // observability plugin. The page then says the guide is unavailable instead.
+// The client comes from the panel, since a class component cannot use the
+// hook, and is what ties the error to flag 05.
 export class SizeGuideBoundary extends Component<
-  { productSlug: string; onError: () => void; children: ReactNode },
+  {
+    client: LDClient | undefined;
+    productSlug: string;
+    onError: () => void;
+    children: ReactNode;
+  },
   { failed: boolean }
 > {
   state = { failed: false };
@@ -19,7 +28,7 @@ export class SizeGuideBoundary extends Component<
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    LDObserve.recordError(error, "Size guide failed to open", {
+    recordFlagError(this.props.client, CATALOG_FLAG, error, "Size guide failed to open", {
       component: "SizeGuideDialog",
       "product.slug": this.props.productSlug,
       componentStack: info.componentStack ?? "",

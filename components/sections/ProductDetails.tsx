@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Image from "next/image";
-import { LDObserve } from "@launchdarkly/observability";
+import { useLDClient } from "launchdarkly-react-client-sdk";
 import SectionPanel from "@/components/layout/SectionPanel";
 import { useCart } from "@/components/cart/CartProvider";
 import SizeGuideDialog, { SizeGuideBoundary } from "@/components/ui/SizeGuideDialog";
@@ -13,8 +13,9 @@ import {
   type Product,
 } from "@/lib/products";
 import { sizeChartFor, type SizeChart } from "@/lib/sizeGuide";
-import { useStockBadge } from "@/lib/catalog";
+import { CATALOG_FLAG, useStockBadge } from "@/lib/catalog";
 import { EVENTS, useTrack } from "@/lib/events";
+import { recordFlagError } from "@/lib/flagErrors";
 
 class UnknownSkuError extends Error {
   name = "UnknownSkuError";
@@ -77,6 +78,7 @@ export default function ProductDetails({
   const [addFailed, setAddFailed] = useState(false);
   const stockBadge = useStockBadge(product.slug);
   const { add } = useCart();
+  const client = useLDClient();
   const track = useTrack();
   const { has, toggle: toggleSaved } = useSavedItems();
   const saved = has(product.slug);
@@ -104,7 +106,7 @@ export default function ProductDetails({
       }
       setAddFailed(false);
     } catch (err) {
-      LDObserve.recordError(err as Error, "Add to cart failed", {
+      recordFlagError(client, CATALOG_FLAG, err as Error, "Add to cart failed", {
         component: "ProductDetails",
         "product.slug": product.slug,
         "product.size": size,
@@ -206,6 +208,7 @@ export default function ProductDetails({
 
           {guideOpen && guideChart && (
             <SizeGuideBoundary
+              client={client}
               productSlug={product.slug}
               onError={() => {
                 setGuideOpen(false);

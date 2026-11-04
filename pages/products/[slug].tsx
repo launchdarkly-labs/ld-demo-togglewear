@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { type GetStaticPaths, type GetStaticProps } from "next";
+import { useLDClient } from "launchdarkly-react-client-sdk";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import ProductDetails from "@/components/sections/ProductDetails";
@@ -24,6 +25,7 @@ import {
 // recommendation row are specific to it.
 export default function ProductPage({ product }: { product: Product }) {
   const { persona, variant } = useShopper();
+  const client = useLDClient();
   const track = useTrack();
 
   // The sizes on sale come from the catalog API once it answers, over the
@@ -84,6 +86,7 @@ export default function ProductPage({ product }: { product: Product }) {
         // the two cards.
         <ProductDetailsBoundary
           key={product.slug}
+          client={client}
           product={product}
           flushBottom={showRecommendations}
         >

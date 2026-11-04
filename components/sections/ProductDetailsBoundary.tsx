@@ -1,7 +1,9 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import Link from "next/link";
-import { LDObserve } from "@launchdarkly/observability";
+import type { LDClient } from "launchdarkly-react-client-sdk";
 import SectionPanel from "@/components/layout/SectionPanel";
+import { CATALOG_FLAG } from "@/lib/catalog";
+import { recordFlagError } from "@/lib/flagErrors";
 import type { Product } from "@/lib/products";
 
 // Catches a product panel that fails to render, so one broken product costs
@@ -13,7 +15,15 @@ import type { Product } from "@/lib/products";
 //
 // The page renders this with key={product.slug}, so moving to another product
 // starts with a clean slate instead of carrying the last product's failure.
-type Props = { product: Product; flushBottom?: boolean; children: ReactNode };
+//
+// The client comes from the page, since a class component cannot use the
+// hook, and is what ties the error to flag 05.
+type Props = {
+  client: LDClient | undefined;
+  product: Product;
+  flushBottom?: boolean;
+  children: ReactNode;
+};
 
 export default class ProductDetailsBoundary extends Component<
   Props,
@@ -26,8 +36,8 @@ export default class ProductDetailsBoundary extends Component<
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    const { product } = this.props;
-    LDObserve.recordError(error, "Product details failed to render", {
+    const { client, product } = this.props;
+    recordFlagError(client, CATALOG_FLAG, error, "Product details failed to render", {
       component: "ProductDetails",
       "product.slug": product.slug,
       "product.category": product.category,
