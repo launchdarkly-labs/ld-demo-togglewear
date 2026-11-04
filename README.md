@@ -202,6 +202,8 @@ The browser SDK runs the Observability and Session Replay plugins, and the serve
 
 Flag 05 is the main Observability story, and flags 07, 12, 13 and 14 and Smart Search all produce real errors as well.
 
+Each flag's errors also show on its own **Monitoring** tab, under **Errors**. LaunchDarkly ties an error to a flag only when the flag was evaluated in the same trace, so the store's browser errors that a flag causes (flag 05's crash, stock badge, Size Guide and Add to Cart, and flag 12's failed charge) check the flag again as they are recorded, in `lib/flagErrors.ts`. The server's errors already sit in the trace of the request that evaluated the flag.
+
 ### Developer toolbar
 
 Turn on **LaunchDarkly toolbar** under **Developer tools** in the account menu and LaunchDarkly's [developer toolbar](https://launchdarkly.com/docs/home/getting-started/dev-toolbar) opens in the bottom-left corner. It lists the flags this browser is evaluating, shows its evaluations and custom events as they happen, and can override a flag for this browser only, without changing its targeting in LaunchDarkly. Sign in from the toolbar the first time.
