@@ -98,9 +98,13 @@ const ANONYMOUS: LDContext = {
   anonymous: true,
 };
 
+// A context is a few hundred bytes; the limit is there so the header cannot be
+// used to make the server parse something large. Over it reads as anonymous.
+const MAX_CONTEXT_HEADER_BYTES = 4_096;
+
 export function contextFromRequest(headers: IncomingHttpHeaders): LDContext {
   const header = headers["x-ld-context"];
-  if (typeof header !== "string") return ANONYMOUS;
+  if (typeof header !== "string" || Buffer.byteLength(header) > MAX_CONTEXT_HEADER_BYTES) return ANONYMOUS;
   try {
     const context = JSON.parse(header);
     return context && typeof context.key === "string" ? context : ANONYMOUS;
