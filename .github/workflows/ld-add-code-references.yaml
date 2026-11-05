@@ -14,6 +14,8 @@ env:
 jobs:
   authorize:
     uses: ./.github/workflows/authorize.yaml
+    with:
+      name: ${{ inputs.name }}
 
   add-code-references:
     runs-on: ubuntu-latest

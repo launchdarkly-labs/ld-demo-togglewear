@@ -2,7 +2,9 @@ name: Authorize
 
 # Every workflow here calls this first, and nothing else in it runs unless this
 # passes, because a run can read the repository's secrets and change anyone's
-# environment. Only these GitHub accounts may start one:
+# environment. Two checks:
+#
+# Who started it. Only these GitHub accounts may:
 #
 #   mgarza86             Melanie. The Demo Hub starts every user's Create and
 #                        Rebuild with her token, so all of those count as her.
@@ -13,9 +15,21 @@ name: Authorize
 #
 # triggering_actor rather than actor, so that re-running someone else's run
 # is checked against whoever pressed Re-run.
+#
+# What they typed. The name input becomes a namespace, a hostname, a
+# LaunchDarkly project key and an email prefix, and the Demo Hub passes it
+# through from a form. It has to be a plain lowercase name: letters, digits
+# and hyphens, 1 to 30 characters. The calling workflows only ever put it in
+# a shell through an environment variable, never pasted into the script, and
+# this check is what makes even that safe.
 
 on:
   workflow_call:
+    inputs:
+      name:
+        description: The username the workflow was given
+        required: true
+        type: string
 
 jobs:
   check:
@@ -35,3 +49,13 @@ jobs:
               exit 1
               ;;
           esac
+
+      - name: Check the name
+        env:
+          NAME: ${{ inputs.name }}
+        run: |
+          if [[ ! "$NAME" =~ ^[a-z0-9-]{1,30}$ ]]; then
+            echo "::error::The name has to be 1 to 30 lowercase letters, digits or hyphens: the part of a LaunchDarkly email before the @."
+            exit 1
+          fi
+          echo "Name: $NAME"

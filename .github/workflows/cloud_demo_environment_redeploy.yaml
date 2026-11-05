@@ -1,0 +1,164 @@
+name: Redeploy Demo Environment (keep project)
+run-name: Redeploy ${{ github.event.inputs.name }}
+
+# Rebuilds a store's image from the current code and rolls its pod, without
+# touching its LaunchDarkly project. For getting a fix, such as a dependency
+# upgrade, onto every environment at once: the Rebuild workflow deletes and
+# recreates the project, which takes fifteen minutes and loses whatever the
+# demo had changed.
+#
+# Every key the old image carried is replaced on the way: the SDK key is
+# reset (the old one stops working after thirty minutes), the Reset demo
+# key is made again, and the store gets a new demo key. All three go into the
+# namespace's Secret, which is the only place the pod reads them from.
+#
+# Give it one username, or "all" for every ToggleWear namespace in the
+# cluster, four at a time.
+
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: 'Username, or all for every ToggleWear environment'
+        required: true
+
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_REGION: us-east-1
+  KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+  ECR_REPOSITORY: ld-demo-togglewear
+  KUBECTL_VERSION: "v1.23.0"
+  LD_API_KEY: ${{ secrets.LD_EAP_API_KEY }}
+  EKS_POD_IDENTITY_ROLE_ARN: ${{ secrets.EKS_POD_IDENTITY_ROLE_ARN }}
+
+jobs:
+
+  authorize:
+    uses: ./.github/workflows/authorize.yaml
+    with:
+      name: ${{ inputs.name }}
+
+  # Which namespaces to redeploy, as a JSON list for the matrix below.
+  list-environments:
+    runs-on: ubuntu-latest
+    needs: [authorize]
+    outputs:
+      namespaces: ${{ steps.list.outputs.namespaces }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up kubectl
+        uses: ./.github/actions/setup-kubectl
+
+      - name: List the namespaces
+        id: list
+        env:
+          NAME: ${{ inputs.name }}
+        run: |
+          if [ "$NAME" = "all" ]; then
+            NAMESPACES=$(kubectl get namespaces -o json \
+              | jq -c '[.items[].metadata.name | select(endswith("-togglewear"))]')
+          else
+            NAMESPACES=$(jq -cn --arg ns "$NAME-togglewear" '[$ns]')
+          fi
+          echo "Redeploying: $NAMESPACES"
+          [ "$NAMESPACES" != "[]" ] || { echo "::error::No ToggleWear namespaces found"; exit 1; }
+          echo "namespaces=$NAMESPACES" >> "$GITHUB_OUTPUT"
+
+  redeploy:
+    runs-on: ubuntu-latest
+    needs: [list-environments]
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        namespace: ${{ fromJson(needs.list-environments.outputs.namespaces) }}
+    env:
+      DEMO_NAMESPACE: ${{ matrix.namespace }}
+      # The project key is the namespace; see the Create workflow.
+      LD_PROJECT_KEY: ${{ matrix.namespace }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up kubectl
+        uses: ./.github/actions/setup-kubectl
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ./.github/workflows/demo_provisioning_scripts/requirements.txt
+
+      - name: Check the namespace exists
+        run: kubectl get namespace "$DEMO_NAMESPACE"
+
+      # Before the keys are rotated, so the old pod keeps its working keys
+      # for as little time as possible after they change.
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      # Reads the client-side ID for the build, resets the SDK key and makes a
+      # new Reset demo key. All three land in this step's env, masked.
+      - name: Rotate the store's LaunchDarkly keys
+        working-directory: ./.github/workflows/demo_provisioning_scripts
+        run: python rotate_keys.py
+
+      - name: Make the store's demo key
+        run: |
+          DEMO_API_SECRET=$(openssl rand -hex 24)
+          echo "::add-mask::$DEMO_API_SECRET"
+          echo "DEMO_API_SECRET=$DEMO_API_SECRET" >> "$GITHUB_ENV"
+
+      - name: Create EKS Pod Identity Association
+        run: |
+          aws eks create-pod-identity-association \
+            --cluster-name ld-core-demo-eks \
+            --namespace "$DEMO_NAMESPACE" \
+            --service-account ld-demo-togglewear-sa \
+            --role-arn "$EKS_POD_IDENTITY_ROLE_ARN" \
+            --region us-east-1 || echo "Pod Identity Association may already exist, continuing..."
+
+      - name: Build, tag, and push image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$DEMO_NAMESPACE-$GITHUB_RUN_ID"
+          docker build --build-arg NEXT_PUBLIC_LD_CLIENT_KEY="$LD_CLIENT_KEY" -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Update K8s Deploy File
+        run: python ./.github/workflows/update_k8s_deploy_file.py
+        env:
+          NAMESPACE: ${{ env.DEMO_NAMESPACE }}
+          IMAGE: ${{ steps.login-ecr.outputs.registry }}/ld-demo-togglewear:${{ env.DEMO_NAMESPACE }}-${{ github.run_id }}
+
+      - name: Write the store's Secret
+        run: |
+          kubectl create secret generic ld-demo-togglewear-secrets -n "$DEMO_NAMESPACE" \
+            --from-literal=LD_SDK_KEY="$LD_SDK_KEY" \
+            --from-literal=LD_RESET_TOKEN="$LD_RESET_TOKEN" \
+            --from-literal=DEMO_API_SECRET="$DEMO_API_SECRET" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Applying deploy file to Kubernetes
+        run: kubectl apply -f ./.github/workflows/deploy_files/deploy.yaml -n "$DEMO_NAMESPACE"
+
+      - name: Wait for the new pod
+        run: kubectl rollout status deployment/ld-demo-togglewear-deployment -n "$DEMO_NAMESPACE" --timeout=5m
+
+      - name: Check the store answers
+        run: |
+          for _ in $(seq 20); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://$DEMO_NAMESPACE.launchdarklydemos.com/" || true)
+            [ "$CODE" = "200" ] && { echo "https://$DEMO_NAMESPACE.launchdarklydemos.com answers 200"; exit 0; }
+            sleep 6
+          done
+          echo "::warning::https://$DEMO_NAMESPACE.launchdarklydemos.com answered $CODE, not 200"

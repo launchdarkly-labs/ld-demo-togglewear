@@ -36,6 +36,35 @@ spec:
               containerPort: 3000
               protocol: TCP
           imagePullPolicy: IfNotPresent
+          # Nothing the server reads is in the image. The keys come from the
+          # Secret the workflow writes just before this is applied
+          # (LD_SDK_KEY, LD_RESET_TOKEN, DEMO_API_SECRET); the rest is plain.
+          envFrom:
+            - secretRef:
+                name: ld-demo-togglewear-secrets
+          env:
+            - name: LD_PROJECT_KEY
+              value: placeholder-project
+            - name: AWS_REGION
+              value: us-east-1
+            - name: AWS_DEFAULT_REGION
+              value: us-east-1
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: next-cache
+              mountPath: /app/.next/cache
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: next-cache
+          emptyDir: {}
 
 ---
 # =============================================================================
