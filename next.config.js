@@ -5,6 +5,9 @@ const { version } = require('./package.json');
 // for pages, scripts, styles, fonts and images; the only other parties are
 // LaunchDarkly (flags, events, observability, session replay, the developer
 // toolbar's API) and unpkg, where the toolbar package fetches its bundle.
+// The toolbar runs a LaunchDarkly client of its own against LaunchDarkly's
+// internal ld.catamorphic.com hosts; without them it loads but cannot sign
+// in or list flags.
 //
 // 'unsafe-inline' for styles because components set style attributes, the
 // code examples are syntax-highlighted inline, and the toolbar injects its
@@ -25,7 +28,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https://*.launchdarkly.com https://unpkg.com",
+  "connect-src 'self' https://*.launchdarkly.com https://*.ld.catamorphic.com https://unpkg.com",
   "worker-src 'self' blob:",
   "frame-src https://*.launchdarkly.com",
   "frame-ancestors 'self'",
