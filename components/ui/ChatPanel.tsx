@@ -446,6 +446,8 @@ export default function ChatPanel({
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Ask about sizing, shipping, anything"
           aria-label="Message the swag assistant"
+          // The most the route accepts in one message (pages/api/swag-assistant).
+          maxLength={2000}
           // Scales with the messages, since a 14px field under 16px replies
           // would be the one thing in the panel that got smaller.
           className={`h-10 min-w-0 flex-1 rounded-[10px] border border-grays-02 bg-grays-white px-3 font-sohne text-grays-ld-black placeholder:text-grays-03 focus:border-grays-ld-black focus:outline-none ${

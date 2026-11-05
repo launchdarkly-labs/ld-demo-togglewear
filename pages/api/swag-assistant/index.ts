@@ -232,8 +232,12 @@ function conversationIdFrom(value: unknown): string {
     : `swag-chat-${randomUUID()}`;
 }
 
-// A conversation is sent whole each turn. Longer than this and the model is
-// being used as something other than a shop assistant.
+// The browser sends the whole conversation each turn, so the caps on it are
+// a window, not a refusal: only the last MAX_TURNS well-formed turns are kept,
+// and an earlier turn longer than MAX_TURN_LENGTH is cut to it. Refusing
+// would end a long chat for good, since every later turn carries the same
+// history. The one thing refused is a shopper's own message over the cap,
+// which the panel's input does not allow and only a crafted request sends.
 const MAX_TURNS = 40;
 const MAX_TURN_LENGTH = 2_000;
 
@@ -241,9 +245,12 @@ function isTurn(value: unknown): value is Turn {
   const turn = value as Turn;
   return (
     (turn?.role === "user" || turn?.role === "assistant") &&
-    typeof turn.text === "string" &&
-    turn.text.length <= MAX_TURN_LENGTH
+    typeof turn.text === "string"
   );
+}
+
+function recentTurns(sent: unknown): Turn[] {
+  return (Array.isArray(sent) ? sent : []).filter(isTurn).slice(-MAX_TURNS);
 }
 
 // Next refuses a bigger body with 413 before the handler runs.
@@ -262,17 +269,17 @@ async function handler(
   }
   if (!guard(req, res, "swag-assistant", LIMITS.ai)) return;
 
-  const sent = Array.isArray(req.body?.messages) ? (req.body.messages as unknown[]) : [];
-  if (sent.length > MAX_TURNS || !sent.every(isTurn)) {
-    res.status(400).json({ error: `At most ${MAX_TURNS} messages of ${MAX_TURN_LENGTH} characters` });
-    return;
-  }
-  const turns = sent as Turn[];
-  const question = turns[turns.length - 1];
+  const recent = recentTurns(req.body?.messages);
+  const question = recent[recent.length - 1];
   if (!question || question.role !== "user" || !question.text.trim()) {
     res.status(400).json({ error: "The last message has to be the shopper's" });
     return;
   }
+  if (question.text.length > MAX_TURN_LENGTH) {
+    res.status(400).json({ error: `Keep a message under ${MAX_TURN_LENGTH} characters` });
+    return;
+  }
+  const turns = recent.map((turn) => ({ ...turn, text: turn.text.slice(0, MAX_TURN_LENGTH) }));
 
   const aiClient = await getAiClient();
   if (!aiClient) {
