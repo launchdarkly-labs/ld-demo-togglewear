@@ -10,6 +10,7 @@ import {
 import type { AIMessage } from "@langchain/core/messages";
 import { activityGroup, recordActivity } from "@/lib/activity";
 import { getAiClient, textOf } from "@/lib/aiServer";
+import { guard, LIMITS } from "@/lib/apiGuard";
 import { contextFromRequest, getServerClient } from "@/lib/ldServer";
 import { startAgentRun } from "@/lib/llmTrace";
 import { memberPriceUsd, productsFor, type Product } from "@/lib/products";
@@ -116,6 +117,9 @@ function noteFailureTracked(model: string) {
   });
 }
 
+// Next refuses a bigger body with 413 before the handler runs.
+export const config = { api: { bodyParser: { sizeLimit: "4kb" } } };
+
 export default activityGroup("Smart Search", handler);
 
 async function handler(
@@ -127,6 +131,7 @@ async function handler(
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
+  if (!guard(req, res, "smart-search", LIMITS.ai)) return;
 
   const query =
     typeof req.body?.query === "string" ? req.body.query.trim().slice(0, MAX_QUERY_LENGTH) : "";

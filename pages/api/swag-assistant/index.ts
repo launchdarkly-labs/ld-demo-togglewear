@@ -21,6 +21,7 @@ import {
 } from "@langchain/core/messages";
 import { activityGroup } from "@/lib/activity";
 import { addUsage, getAiClient, judge, rememberReply, textOf } from "@/lib/aiServer";
+import { guard, LIMITS } from "@/lib/apiGuard";
 import { contextFromRequest } from "@/lib/ldServer";
 import { startAgentRun, type AgentRun } from "@/lib/llmTrace";
 import { productBySlug } from "@/lib/products";
@@ -231,13 +232,22 @@ function conversationIdFrom(value: unknown): string {
     : `swag-chat-${randomUUID()}`;
 }
 
+// A conversation is sent whole each turn. Longer than this and the model is
+// being used as something other than a shop assistant.
+const MAX_TURNS = 40;
+const MAX_TURN_LENGTH = 2_000;
+
 function isTurn(value: unknown): value is Turn {
   const turn = value as Turn;
   return (
     (turn?.role === "user" || turn?.role === "assistant") &&
-    typeof turn.text === "string"
+    typeof turn.text === "string" &&
+    turn.text.length <= MAX_TURN_LENGTH
   );
 }
+
+// Next refuses a bigger body with 413 before the handler runs.
+export const config = { api: { bodyParser: { sizeLimit: "128kb" } } };
 
 export default activityGroup("Swag Assistant", handler);
 
@@ -250,10 +260,14 @@ async function handler(
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
+  if (!guard(req, res, "swag-assistant", LIMITS.ai)) return;
 
-  const turns = Array.isArray(req.body?.messages)
-    ? (req.body.messages as unknown[]).filter(isTurn)
-    : [];
+  const sent = Array.isArray(req.body?.messages) ? (req.body.messages as unknown[]) : [];
+  if (sent.length > MAX_TURNS || !sent.every(isTurn)) {
+    res.status(400).json({ error: `At most ${MAX_TURNS} messages of ${MAX_TURN_LENGTH} characters` });
+    return;
+  }
+  const turns = sent as Turn[];
   const question = turns[turns.length - 1];
   if (!question || question.role !== "user" || !question.text.trim()) {
     res.status(400).json({ error: "The last message has to be the shopper's" });

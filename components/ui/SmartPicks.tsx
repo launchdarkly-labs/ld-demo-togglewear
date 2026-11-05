@@ -52,7 +52,7 @@ export default function SmartPicks({
       try {
         const res = await fetch("/api/smart-search", {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...apiHeaders(client) },
+          headers: { "Content-Type": "application/json", ...(await apiHeaders(client)) },
           body: JSON.stringify({ query: search, outage: searchOutage }),
           signal: controller.signal,
         });

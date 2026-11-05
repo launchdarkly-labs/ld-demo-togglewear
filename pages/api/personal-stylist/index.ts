@@ -10,6 +10,7 @@ import {
 import type { AIMessage } from "@langchain/core/messages";
 import { activityGroup } from "@/lib/activity";
 import { getAiClient, judge, rememberReply, textOf } from "@/lib/aiServer";
+import { guard, LIMITS, text } from "@/lib/apiGuard";
 import { contextFromRequest } from "@/lib/ldServer";
 import { startAgentRun } from "@/lib/llmTrace";
 import {
@@ -46,6 +47,8 @@ import { swagAssistantTools } from "@/lib/swagAssistantTools";
 // the note change under them. A different model, mid-rollout, or a new
 // version of the prompt is a new note.
 const MAX_NOTES = 500;
+// Slugs are short; anything longer is not one of ours.
+const MAX_SLUG_LENGTH = 100;
 
 const globalStore = globalThis as typeof globalThis & {
   stylistNotes?: Map<string, StylistNote>;
@@ -92,6 +95,9 @@ function pickedFrom(text: string, product: Product, catalog: { slug: string }[])
   };
 }
 
+// Next refuses a bigger body with 413 before the handler runs.
+export const config = { api: { bodyParser: { sizeLimit: "4kb" } } };
+
 export default activityGroup("Personal Stylist", handler);
 
 async function handler(
@@ -103,8 +109,9 @@ async function handler(
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
+  if (!guard(req, res, "personal-stylist", LIMITS.ai)) return;
 
-  const slug = typeof req.body?.slug === "string" ? req.body.slug : "";
+  const slug = text(req.body?.slug, MAX_SLUG_LENGTH) ?? "";
   const context = contextFromRequest(req.headers);
   const person = shopperById(typeof context.key === "string" ? context.key : "");
   const product = productBySlug(slug);

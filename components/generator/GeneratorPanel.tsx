@@ -10,6 +10,7 @@ import {
   type GeneratorInfo,
   type GeneratorStatus,
 } from "@/lib/generator/catalog";
+import { apiHeaders } from "@/lib/api";
 import type { GeneratorsResponse } from "@/pages/api/generators";
 
 // The demo generator's remote control, opened with Cmd+K (Ctrl+K elsewhere),
@@ -23,7 +24,10 @@ import type { GeneratorsResponse } from "@/pages/api/generators";
 const POLL_MS = 1000;
 
 async function request(init?: RequestInit) {
-  const res = await fetch("/api/generators", init);
+  const res = await fetch("/api/generators", {
+    ...init,
+    headers: { ...(await apiHeaders()), ...(init?.headers as Record<string, string> | undefined) },
+  });
   if (!res.ok) throw new Error(`Generator API answered ${res.status}`);
   return ((await res.json()) as GeneratorsResponse).generators;
 }

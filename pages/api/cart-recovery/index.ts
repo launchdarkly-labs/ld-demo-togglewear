@@ -17,6 +17,7 @@ import {
   type CartRecoveryReply,
   type Offer,
 } from "@/lib/cartRecovery";
+import { guard, LIMITS } from "@/lib/apiGuard";
 import { contextFromRequest } from "@/lib/ldServer";
 import { COMEBACK_CODE, STICKERS_CODE, WELCOME_CODE } from "@/lib/products";
 import { startAgentRun } from "@/lib/llmTrace";
@@ -78,7 +79,9 @@ function isLines(value: unknown): value is CartLine[] {
     value.every(
       (line) =>
         typeof line?.slug === "string" &&
+        line.slug.length <= 100 &&
         typeof line?.size === "string" &&
+        line.size.length <= 20 &&
         Number.isInteger(line?.quantity) &&
         line.quantity > 0,
     )
@@ -93,6 +96,9 @@ function offersOf(custom: Record<string, unknown> | undefined): Offer[] {
 
 type Written = { message: string; offer: Offer; metrics: LDAIMetrics };
 
+// Next refuses a bigger body with 413 before the handler runs.
+export const config = { api: { bodyParser: { sizeLimit: "16kb" } } };
+
 export default activityGroup("Cart Recovery", handler);
 
 async function handler(
@@ -104,6 +110,7 @@ async function handler(
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
+  if (!guard(req, res, "cart-recovery", LIMITS.ai)) return;
 
   const context = contextFromRequest(req.headers);
   const person = shopperById(typeof context.key === "string" ? context.key : "");

@@ -49,7 +49,7 @@ export function useCartRecovery(active: boolean): CartRecovery {
       try {
         const res = await fetch("/api/cart-recovery", {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...apiHeaders(ldClient) },
+          headers: { "Content-Type": "application/json", ...(await apiHeaders(ldClient)) },
           body: JSON.stringify({ lines: cart } satisfies CartRecoveryRequest),
         });
         if (!res.ok) throw new Error(`Cart recovery answered ${res.status}`);

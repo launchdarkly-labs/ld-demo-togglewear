@@ -155,7 +155,7 @@ export default function CheckoutPage() {
     let answered = false;
     setAssessing(true);
     try {
-      await streamOrderReview(client ? apiHeaders(client) : {}, order, (reviewEvent) => {
+      await streamOrderReview(await apiHeaders(client), order, (reviewEvent) => {
         if (reviewEvent.type === "step") {
           const { step } = reviewEvent;
           setSteps((current) => ({ ...current, [step.key]: step }));
