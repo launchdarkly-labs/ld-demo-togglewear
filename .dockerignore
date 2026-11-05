@@ -1,0 +1,14 @@
+# Only what the build needs goes to Docker. In particular no local env files,
+# whose keys would otherwise be copied into the image, and no local
+# node_modules or build output, which the image builds itself.
+.git
+.github
+.next
+node_modules
+out
+.env*
+docs
+ops
+README.md
+*.md
+.DS_Store
