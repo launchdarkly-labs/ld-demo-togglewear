@@ -31,6 +31,7 @@ import {
   type FraudAssessment,
   type FraudDecision,
 } from "@/lib/fraudAgent";
+import { guard, LIMITS, text } from "@/lib/apiGuard";
 import { contextFromRequest } from "@/lib/ldServer";
 import { startAgentRun, type AgentRun as TracedRun } from "@/lib/llmTrace";
 import {
@@ -195,14 +196,32 @@ function parseDecision(text: string): { decision: FraudDecision; summary: string
   }
 }
 
+// What a checkout form can hold, with room to spare. A cart has at most a few
+// dozen lines; an address field a few dozen characters.
+const MAX_LINES = 50;
+const MAX_FIELD = 200;
+
 function isRequest(body: unknown): body is OrderReviewRequest {
   const order = body as OrderReviewRequest;
   return (
-    typeof order?.ref === "string" &&
+    text(order?.ref, 64) !== null &&
     Array.isArray(order.lines) &&
+    order.lines.length <= MAX_LINES &&
+    order.lines.every(
+      (line) =>
+        text(line?.slug, 100) !== null &&
+        text(line?.size, 20) !== null &&
+        Number.isInteger(line?.quantity) &&
+        line.quantity > 0 &&
+        line.quantity <= 1_000,
+    ) &&
     typeof order.total === "number" &&
-    typeof order.shipTo?.zip === "string" &&
-    typeof order.payment === "string"
+    Number.isFinite(order.total) &&
+    order.shipTo !== null &&
+    typeof order.shipTo === "object" &&
+    Object.values(order.shipTo).every((field) => text(field, MAX_FIELD) !== null) &&
+    text(order.shipTo.zip, 16) !== null &&
+    text(order.payment, 64) !== null
   );
 }
 
@@ -383,6 +402,9 @@ async function runGraph(
   }
 }
 
+// Next refuses a bigger body with 413 before the handler runs.
+export const config = { api: { bodyParser: { sizeLimit: "32kb" } } };
+
 export default activityGroup("Order Review", handler);
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -391,6 +413,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
+  if (!guard(req, res, "order-review", LIMITS.ai)) return;
   if (!isRequest(req.body)) {
     res.status(400).json({ error: "Not an order" });
     return;

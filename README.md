@@ -36,6 +36,7 @@ Environments are created and managed by GitHub Actions workflows, all started by
 |---|---|
 | **Create Demo Environment** (`cloud_demo_environment_create.yaml`) | Builds a new environment: a LaunchDarkly project, a container image and a pod, and a DNS record. |
 | **Rebuild Demo Environment (Delete + Create)** (`cloud_demo_environment_recreate.yaml`) | Deletes your environment and builds it again from the current code. Use it to pick up changes or to reset a demo that has drifted. |
+| **Redeploy Demo Environment (keep project)** (`cloud_demo_environment_redeploy.yaml`) | Rebuilds the image from the current code and rolls the pod, keeping the LaunchDarkly project as it is. Rotates the store's keys on the way. Takes a username, or `all` for every environment, four at a time. For getting a fix onto every environment. |
 | **Delete Demo Environment** (`cloud_demo_environment_deprovisioning.yaml`) | Deletes your environment: the LaunchDarkly project, its reset key and code references, the Kubernetes namespace and the DNS record. |
 | **Add Code References** (`ld-add-code-references.yaml`) | Refreshes one user's code references by hand. Create and Rebuild already add them. |
 
@@ -247,7 +248,7 @@ If an environment has drifted too far, run the **Rebuild** workflow.
 
 **You need:**
 
-- Node.js 22 and npm.
+- Node.js 22 or 24 and npm. The image runs on 24.
 - A LaunchDarkly project to point at. Your demo environment's project works, or a test project built with `DemoBuilder.py` (see below).
 - AWS credentials with Bedrock access in `us-east-1`, for the AI features. The app uses the standard AWS credential chain, so a signed-in AWS CLI profile is enough. Without credentials the rest of the store still works, but the AI features can't answer.
 
@@ -264,6 +265,7 @@ Create `.env.local` in the repo root:
 | `NEXT_PUBLIC_LD_CLIENT_KEY` | The project's client-side ID, from the production environment |
 | `LD_SDK_KEY` | The production environment's server-side SDK key |
 | `LD_PROJECT_KEY` and `LD_RESET_TOKEN` | Optional, for the Reset demo button: the project's key, and its reset key (see [Resetting after a demo](#resetting-after-a-demo)) |
+| `DEMO_API_SECRET` | Optional in `next dev`, required by `next start`: the key the browser sends to the AI and demo routes (see [Security](#security)). Any string will do locally |
 | `AWS_REGION` | Optional. Defaults to `us-east-1` |
 
 Then:
@@ -314,11 +316,11 @@ The Create and Rebuild workflows do the same work:
    10. The experiments.
    11. Results: the generators run for about ten minutes so every experiment and guarded rollout has data.
 
-   The SDK and client keys are masked in the log and handed to the next steps.
-2. **Write `.env.production`** with the client ID, SDK key and AWS region, the only settings the app reads. It is built into the image, so nothing else goes in it.
+   The SDK and client keys and the reset key are masked in the log and handed to the next steps.
+2. **Make the store's demo key**, a random string the browser has to send with every call to the AI and demo routes. It is masked too.
 3. **Create the EKS Pod Identity association**, which gives the pod its AWS credentials for Bedrock. It runs before the build because a pod started before EKS applies it comes up without credentials.
-4. **Build and push the image** to the `ld-demo-togglewear` ECR repository.
-5. **Deploy** `deploy_files/deploy.yaml` into the `<name>-togglewear` namespace on the shared `ld-core-demo-eks` cluster: a deployment, a service and an ingress with a TLS certificate. `update_k8s_deploy_file.py` fills in the namespace, host and image.
+4. **Build and push the image** to the `ld-demo-togglewear` ECR repository. The build takes one thing, the client-side ID, which the browser bundle inlines and which is public by design. No key goes into the image.
+5. **Deploy** into the `<name>-togglewear` namespace on the shared `ld-core-demo-eks` cluster. First a Secret, `ld-demo-togglewear-secrets`, holding the SDK key, the reset key and the demo key, written from the workflow's environment so none of them appears in the log. Then `deploy_files/deploy.yaml`: a deployment that reads that Secret, a service and an ingress with a TLS certificate. `update_k8s_deploy_file.py` fills in the namespace, host, image and project key.
 6. **Point DNS** at the cluster's ingress with a Route 53 CNAME for `<name>-togglewear.launchdarklydemos.com`.
 7. **Add code references**, so each flag's Code references tab in LaunchDarkly shows where the store uses it. It uploads under a repository name of the user's own, `ld-demo-togglewear-<name>`, because each upload replaces whatever was under its name; with one shared name only the last person to run it would keep theirs. `.launchdarkly/coderefs.yaml` makes it match flag keys outside quotes, as in `const { earlyAccessDrop } = useFlags()`, and `.ldignore` leaves out the build scripts, which name every flag. A failure here never fails the build. The Delete workflow removes the repository.
 8. **Wait for the store's certificate.** Until cert-manager gets the store its Let's Encrypt certificate, usually about five minutes after DNS, the ingress serves its built-in "Kubernetes Ingress Controller Fake Certificate" and browsers warn. So the build waits for the pod to roll out and for the `<name>-togglewear-tls-secret` Certificate to be Ready, up to ten minutes, before the user is told the store is ready. If it isn't ready by then, the step logs a warning and the build carries on.
@@ -326,6 +328,10 @@ The Create and Rebuild workflows do the same work:
 10. **Tell the user in Slack.** `notify_slack.py` sends them a direct message from the ToggleWear Slack app: their store is ready, it's up but part of the project didn't build, or it failed. They're found by their `<name>@launchdarkly.com` email. This runs after a failure too, but not after a cancel. It needs the app's bot token in the `SLACK_BOT_TOKEN` repository secret; without it, or if Slack doesn't answer, the step skips the message and the build is unaffected.
 
 The Create and Rebuild workflows also report their progress to the demo portal's records Lambda, under the user key `<name>-togglewear`. The Delete workflow reports to a webhook instead, when it is given one.
+
+**Redeploy** does steps 4 and 5 only, for one environment or all of them, and rotates the keys first: `rotate_keys.py` resets the project's SDK key (the old one keeps working for thirty minutes, long enough for the new pod to take over), makes a new reset key and reads the client-side ID; the workflow makes a new demo key. So an image already in the registry, or a pod already running, is left with nothing that still works. It does not touch the project, so a demo in progress keeps its flags and its data, and it is how a fix to the code or a dependency reaches every environment.
+
+Every workflow begins by checking the name it was given against `^[a-z0-9-]{1,30}$` (in `authorize.yaml`), and from there the name only ever reaches a shell through an environment variable, never pasted into a script. The JSON sent to the Lambda and the webhook is built with `jq` for the same reason.
 
 ## Repository layout
 
@@ -342,12 +348,15 @@ The Create and Rebuild workflows also report their progress to the demo portal's
 │       ├── cart-recovery/    The Cart Recovery agent's reminder
 │       ├── order-review/     The six-agent Order Review
 │       ├── catalog/, stock/  Product and stock data (flag 05 on the server)
+│       ├── demo-key.ts       Hands the browser the key the guarded routes want
+│       ├── demo-reset.ts     The Reset demo button
 │       └── generators.ts     The Cmd+K demo generator
 ├── components/               React components, grouped by page or area
 │   ├── generator/            The Cmd+K panel
 │   ├── hood/                 The Under the hood panel and its code examples
 │   └── ui/                   Shared pieces, including the LaunchDarkly provider
 ├── lib/                      Data and server logic
+│   ├── apiGuard.ts           Rate limits and the demo key, in front of the AI and demo routes
 │   ├── products.ts           The catalog: best sellers, new arrivals, tech and members-only
 │   ├── shopper.ts            The shoppers and their LaunchDarkly contexts
 │   ├── fraudAgent.ts         The Order Review's risk rules and thresholds
@@ -359,19 +368,23 @@ The Create and Rebuild workflows also report their progress to the demo portal's
 │   └── generator/            What each Cmd+K generator does
 ├── public/                   Images and icons
 ├── styles/                   Global CSS and the Söhne fonts
-├── dockerfile                The production image
+├── dockerfile                The production image: Next's standalone output on Node 24, no npm
 ├── docs/api_endpoint_usage.csv  Which LaunchDarkly REST endpoints the build calls
+├── ops/                      Runbooks and scripts for the cluster and the AWS account
+│   ├── bedrock-budget.sh     The AWS Budgets alert on Bedrock spend
+│   └── ingress-nginx-remediation.md  Upgrading or replacing the cluster's ingress controller
 ├── .github/actions/setup-kubectl/  Installs pinned, checksum-checked kubectl for the workflows
 └── .github/workflows/
     ├── cloud_demo_environment_*.yaml   The workflows above
     ├── authorize.yaml                  Stops any run Melanie or Kevin didn't start
     ├── deploy_files/deploy.yaml        The Kubernetes manifest
-    ├── update_k8s_deploy_file.py
+    ├── update_k8s_deploy_file.py       Fills in its placeholders
     └── demo_provisioning_scripts/
         ├── demo_resources.py   Every LaunchDarkly resource, as tables
         ├── DemoBuilder.py      Builds the project from those tables
         ├── check_build.py      Confirms the build made all of them
         ├── notify_slack.py     Tells the user in Slack how the build went
+        ├── rotate_keys.py      New SDK and reset keys for an environment Redeploy keeps
         ├── LDPlatform.py       The LaunchDarkly API client
         ├── results_generator.py, LDGeneratorsRunner.py   Build-time results
         ├── run_optimization.py Reruns an agent optimization on Bedrock
@@ -416,7 +429,7 @@ The Create and Rebuild workflows also report their progress to the demo portal's
 - The two optimizations.
 - The table in this README.
 
-**Deploying a change.** Push to `main`, then run **Rebuild** for your environment. The workflows build from the branch they are run on.
+**Deploying a change.** Push to `main`, then run **Redeploy** for your environment, or with `all` for every environment. It keeps the LaunchDarkly project and takes a few minutes. Run **Rebuild** instead when the change is to `demo_resources.py`, since only a rebuild makes the project again. The workflows build from the branch they are run on.
 
 ## Troubleshooting
 
@@ -439,4 +452,9 @@ This repository and its Actions logs are **public**.
 - Never put a key, token, webhook URL or account ID in code, in a workflow's `echo`, or in a workflow expression that ends up in a printed script.
 - Secrets from GitHub are masked automatically. Anything else a workflow generates or receives as an input has to be masked with `::add-mask::` before it is used. The Delete workflow's webhook steps show how.
 - `.env`, `.env.local` and `.env.production` are git-ignored. Keep them that way.
-- Every workflow starts with `authorize.yaml`, which stops the run unless Melanie or Kevin started it. The Demo Hub starts every user's Create and Rebuild with Melanie's token, so users are unaffected. If the Demo Hub's token is ever replaced with someone else's, add their GitHub account to `authorize.yaml` first.
+- Every workflow starts with `authorize.yaml`, which stops the run unless Melanie or Kevin started it, and unless the name it was given is 1 to 30 lowercase letters, digits or hyphens. The Demo Hub starts every user's Create and Rebuild with Melanie's token, so users are unaffected. If the Demo Hub's token is ever replaced with someone else's, add their GitHub account to `authorize.yaml` first.
+- **No key is in the image.** The SDK key, the reset key and the demo key reach the pod from the namespace's Kubernetes Secret, written by the workflow. The image holds the client-side ID only, which is public by design. Redeploy rotates all three keys.
+- **The AI and demo routes are guarded** (`lib/apiGuard.ts`): the swag assistant, personal stylist, smart search, cart recovery, order review and their feedback routes, and the generators' and Reset demo's POSTs. Each is rate limited per client address and in total, caps its body size and its fields, and wants the store's demo key in an `x-demo-key` header. The browser fetches the key from `/api/demo-key`, so it is the store's identity rather than a visitor's: it stops scanners that hit every store alike and other sites making a visitor's browser call these routes, not a visitor who reads the page. The rate limits are what cap the Bedrock spend; `ops/bedrock-budget.sh` sets the AWS Budgets alert behind them. A store without a `DEMO_API_SECRET` answers 503 on these routes rather than serving them open.
+- **Every response carries security headers**, set in `next.config.js`: a Content Security Policy that lets scripts load only from the store itself and unpkg (where the developer toolbar fetches its bundle), lets the browser talk only to the store and LaunchDarkly (including the `ld.catamorphic.com` hosts the developer toolbar's own client uses), refuses eval, plugins and other sites' frames (inline scripts stay allowed, because Next inlines Turbopack's per-page chunk list and prerenders most pages, so neither a hash nor a nonce can name it; see `next.config.js`), HSTS, `X-Content-Type-Options: nosniff` and a referrer policy. If a new third-party script or host is added, add it to the policy or the browser blocks it.
+- The `x-ld-context` header a route reads the shopper from is accepted up to 4 KB; anything bigger reads as an anonymous shopper.
+- The runtime image is Next's standalone output on the current Node LTS, without npm, devDependencies or a shell user: most image scanner findings came from the npm CLI inside the base image, not from the app. The pod runs read-only, without privileges, as a non-root user.

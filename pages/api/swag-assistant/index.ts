@@ -21,6 +21,7 @@ import {
 } from "@langchain/core/messages";
 import { activityGroup } from "@/lib/activity";
 import { addUsage, getAiClient, judge, rememberReply, textOf } from "@/lib/aiServer";
+import { guard, LIMITS } from "@/lib/apiGuard";
 import { contextFromRequest } from "@/lib/ldServer";
 import { startAgentRun, type AgentRun } from "@/lib/llmTrace";
 import { productBySlug } from "@/lib/products";
@@ -231,6 +232,15 @@ function conversationIdFrom(value: unknown): string {
     : `swag-chat-${randomUUID()}`;
 }
 
+// The browser sends the whole conversation each turn, so the caps on it are
+// a window, not a refusal: only the last MAX_TURNS well-formed turns are kept,
+// and an earlier turn longer than MAX_TURN_LENGTH is cut to it. Refusing
+// would end a long chat for good, since every later turn carries the same
+// history. The one thing refused is a shopper's own message over the cap,
+// which the panel's input does not allow and only a crafted request sends.
+const MAX_TURNS = 40;
+const MAX_TURN_LENGTH = 2_000;
+
 function isTurn(value: unknown): value is Turn {
   const turn = value as Turn;
   return (
@@ -238,6 +248,13 @@ function isTurn(value: unknown): value is Turn {
     typeof turn.text === "string"
   );
 }
+
+function recentTurns(sent: unknown): Turn[] {
+  return (Array.isArray(sent) ? sent : []).filter(isTurn).slice(-MAX_TURNS);
+}
+
+// Next refuses a bigger body with 413 before the handler runs.
+export const config = { api: { bodyParser: { sizeLimit: "128kb" } } };
 
 export default activityGroup("Swag Assistant", handler);
 
@@ -250,15 +267,19 @@ async function handler(
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
+  if (!guard(req, res, "swag-assistant", LIMITS.ai)) return;
 
-  const turns = Array.isArray(req.body?.messages)
-    ? (req.body.messages as unknown[]).filter(isTurn)
-    : [];
-  const question = turns[turns.length - 1];
+  const recent = recentTurns(req.body?.messages);
+  const question = recent[recent.length - 1];
   if (!question || question.role !== "user" || !question.text.trim()) {
     res.status(400).json({ error: "The last message has to be the shopper's" });
     return;
   }
+  if (question.text.length > MAX_TURN_LENGTH) {
+    res.status(400).json({ error: `Keep a message under ${MAX_TURN_LENGTH} characters` });
+    return;
+  }
+  const turns = recent.map((turn) => ({ ...turn, text: turn.text.slice(0, MAX_TURN_LENGTH) }));
 
   const aiClient = await getAiClient();
   if (!aiClient) {

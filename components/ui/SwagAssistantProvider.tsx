@@ -171,7 +171,7 @@ export function SwagAssistantProvider({ children }: { children: ReactNode }) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(client ? apiHeaders(client) : {}),
+            ...(await apiHeaders(client)),
           },
           body: JSON.stringify({
             messages: history,
@@ -220,14 +220,15 @@ export function SwagAssistantProvider({ children }: { children: ReactNode }) {
       setMessages((prev) =>
         prev.map((m) => (m.id === messageId ? { ...m, feedback: kind } : m)),
       );
-      fetch("/api/swag-assistant/feedback", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(client ? apiHeaders(client) : {}),
-        },
-        body: JSON.stringify({ replyId: message.replyId, kind }),
-      }).catch((err: Error) =>
+      apiHeaders(client)
+        .then((headers) =>
+          fetch("/api/swag-assistant/feedback", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...headers },
+            body: JSON.stringify({ replyId: message.replyId, kind }),
+          }),
+        )
+        .catch((err: Error) =>
         LDObserve.recordError(err, "Swag assistant feedback failed"),
       );
     },

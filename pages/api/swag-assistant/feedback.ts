@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { LDFeedbackKind } from "@launchdarkly/server-sdk-ai";
 import { getAiClient, takeReply } from "@/lib/aiServer";
+import { guard, LIMITS, text } from "@/lib/apiGuard";
 import { contextFromRequest } from "@/lib/ldServer";
 
 // A thumbs up or down on one of the swag assistant's replies, recorded on
@@ -12,6 +13,9 @@ const KINDS: Record<string, LDFeedbackKind> = {
   negative: LDFeedbackKind.Negative,
 };
 
+// Next refuses a bigger body with 413 before the handler runs.
+export const config = { api: { bodyParser: { sizeLimit: "2kb" } } };
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<{ ok: true } | { error: string }>,
@@ -22,9 +26,11 @@ export default async function handler(
     return;
   }
 
+  if (!guard(req, res, "feedback", LIMITS.feedback)) return;
+
   const kind = KINDS[req.body?.kind];
-  const replyId = req.body?.replyId;
-  if (!kind || typeof replyId !== "string") {
+  const replyId = text(req.body?.replyId, 100);
+  if (!kind || !replyId) {
     res.status(400).json({ error: "Send a replyId and a kind of positive or negative" });
     return;
   }

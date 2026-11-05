@@ -4,6 +4,7 @@ import { openDemoGenerator } from "@/components/generator/DemoGenerator";
 import { IncidentRow, OutageToggle } from "@/components/ui/AccountMenu";
 import { useDeveloperToolbar } from "@/components/ui/DeveloperToolbar";
 import { useIncidents } from "@/components/ui/IncidentProvider";
+import { apiHeaders } from "@/lib/api";
 import type { ResetResult } from "@/lib/demoReset";
 import { GENERATOR_GROUPS, GENERATORS } from "@/lib/generator/catalog";
 import type { DemoResetResponse } from "@/pages/api/demo-reset";
@@ -57,7 +58,7 @@ function ResetDemo({ onReset }: { onReset: () => void }) {
     setError(false);
     onReset();
     try {
-      const res = await fetch("/api/demo-reset", { method: "POST" });
+      const res = await fetch("/api/demo-reset", { method: "POST", headers: await apiHeaders() });
       const body = (await res.json()) as DemoResetResponse;
       setConfigured(body.configured);
       setResults(body.results ?? null);

@@ -129,7 +129,7 @@ export default function StylistNote({
       try {
         const res = await fetch("/api/personal-stylist", {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...apiHeaders(ldClient) },
+          headers: { "Content-Type": "application/json", ...(await apiHeaders(ldClient)) },
           body: JSON.stringify({ slug }),
         });
         if (!res.ok) throw new Error(`Personal stylist answered ${res.status}`);
@@ -152,11 +152,15 @@ export default function StylistNote({
   function rate(kind: FeedbackKind) {
     if (state.status !== "ready" || state.feedback || !client) return;
     setState({ ...state, feedback: kind });
-    fetch("/api/personal-stylist/feedback", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...apiHeaders(client) },
-      body: JSON.stringify({ replyId: state.note.replyId, kind }),
-    }).catch((err: Error) => LDObserve.recordError(err, "Personal stylist feedback failed"));
+    apiHeaders(client)
+      .then((headers) =>
+        fetch("/api/personal-stylist/feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...headers },
+          body: JSON.stringify({ replyId: state.note.replyId, kind }),
+        }),
+      )
+      .catch((err: Error) => LDObserve.recordError(err, "Personal stylist feedback failed"));
   }
 
   if (state.status === "none") return null;

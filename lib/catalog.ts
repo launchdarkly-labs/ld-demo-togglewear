@@ -71,9 +71,8 @@ export function useLiveProduct(slug: string): LiveProductState {
     if (!client) return;
 
     let cancelled = false;
-    fetch(`/api/catalog/${encodeURIComponent(slug)}`, {
-      headers: apiHeaders(client),
-    })
+    apiHeaders(client)
+      .then((headers) => fetch(`/api/catalog/${encodeURIComponent(slug)}`, { headers }))
       .then(async (res) => {
         if (cancelled) return;
         if (res.status === 504) {
@@ -110,9 +109,8 @@ export function useStockBadge(slug: string): string | undefined {
     if (!client) return;
 
     let cancelled = false;
-    fetch(`/api/stock/${encodeURIComponent(slug)}`, {
-      headers: apiHeaders(client),
-    })
+    apiHeaders(client)
+      .then((headers) => fetch(`/api/stock/${encodeURIComponent(slug)}`, { headers }))
       .then((res) => res.json() as Promise<{ badge: string }>)
       .then((body) => {
         if (!cancelled) setBadge(body.badge);
