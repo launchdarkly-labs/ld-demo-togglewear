@@ -33,11 +33,16 @@ export const DEMO_KEY_HEADER = "x-demo-key";
 export type Limit = { perClient: number; total: number };
 
 // Requests allowed per minute, per client address and in total per route.
+//
+// The totals are the store's Bedrock spending cap, so they are set for what
+// a store actually is: one person presenting, perhaps a couple following
+// along. Each AI answer takes a few seconds, so 30 a minute from one address
+// is more than anyone can click, and 40 across the store leaves room for a
+// second browser without letting a patient script run the bill up all day.
+// There is no spend alert behind these; they are the control.
 export const LIMITS = {
-  // One AI answer at a time per shopper, a few seconds each: 30 a minute is
-  // more than a person presenting can click.
-  ai: { perClient: 30, total: 120 },
-  feedback: { perClient: 60, total: 240 },
+  ai: { perClient: 30, total: 40 },
+  feedback: { perClient: 30, total: 60 },
   // Start/stop and status: the Cmd+K panel polls status once a second, but
   // that is a GET, which is not counted. Only POSTs are.
   control: { perClient: 20, total: 60 },
