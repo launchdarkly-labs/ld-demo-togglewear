@@ -55,14 +55,21 @@ kubectl get ingress -A -o json | jq -r '.items[].metadata.annotations // {} | ke
 
 # 1a. Helm install: pin chart 4.15.1 (appVersion 1.15.1)
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && helm repo update
-helm get values ingress-nginx -n ingress-nginx > /tmp/ingress-nginx-values.bak.yaml
+helm get values ingress-nginx -n ingress-nginx -o yaml > /tmp/ingress-nginx-values.bak.yaml
+# --reset-values with the saved user values, NOT --reuse-values: reuse carries
+# the previous release's computed values forward, including the old chart's
+# default image tag and digest, so the controller silently stays on the old
+# version while Helm reports the new chart. (Seen on 2026-11-06: revision 4
+# said 1.15.1, the pod still ran v1.12.2; revision 5 with --reset-values fixed it.)
 helm upgrade ingress-nginx ingress-nginx/ingress-nginx -n ingress-nginx \
-  --version 4.15.1 --reuse-values \
+  --version 4.15.1 --reset-values -f /tmp/ingress-nginx-values.bak.yaml \
   --set controller.allowSnippetAnnotations=false \
   --set controller.config.annotations-risk-level=High \
   --set controller.enableAnnotationValidations=true \
   --set controller.admissionWebhooks.enabled=true
 kubectl rollout status deployment/ingress-nginx-controller -n ingress-nginx
+# Confirm the image actually changed; Helm's STATUS: deployed alone does not prove it.
+kubectl get deploy ingress-nginx-controller -n ingress-nginx -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
 
 # 1b. Manifest install (no Helm release): set the image to the pinned digest
 kubectl set image deployment/ingress-nginx-controller -n ingress-nginx \
