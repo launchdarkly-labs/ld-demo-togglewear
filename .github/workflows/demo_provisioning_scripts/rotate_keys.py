@@ -51,7 +51,14 @@ def main():
 
     print("Resetting the SDK key", end="...")
     expiry = int((time.time() + GRACE_MINUTES * 60) * 1000)
-    res = ld.getrequest("POST", f"{env_url}/apiKey?expiry={expiry}", headers=headers)
+    # An empty JSON body: the endpoint takes none, but refuses the request
+    # (HTTP 415) unless the Content-Type says JSON.
+    res = ld.getrequest(
+        "POST",
+        f"{env_url}/apiKey?expiry={expiry}",
+        headers={**headers, "Content-Type": "application/json"},
+        json={},
+    )
     if not res.ok:
         sys.exit(f"Could not reset the SDK key (HTTP {res.status_code}): {res.text[:200]}")
     sdk_key = res.json()["apiKey"]
