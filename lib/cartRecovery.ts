@@ -32,6 +32,13 @@ export type CartRecoveryReply = {
   recovery: { message: string; offer: Offer } | null;
 };
 
+// The agent sometimes ends its line without a full stop, which would run it
+// straight into the offer.
 export function recoveryText({ message, offer }: { message: string; offer: Offer }) {
-  return [message, OFFER_LINES[offer]].filter(Boolean).join(" ");
+  const line = message.trim();
+  const offerLine = OFFER_LINES[offer];
+  if (!offerLine) return line;
+  if (!line) return offerLine;
+  const ended = /[.!?]["'’”)]*$/.test(line) ? line : `${line}.`;
+  return `${ended} ${offerLine}`;
 }
